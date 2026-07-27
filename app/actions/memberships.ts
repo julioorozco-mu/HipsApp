@@ -23,6 +23,7 @@ export async function renewMembership(
     estado: "activa" as const,
     fecha_inicio: fechaInicio.toISOString().slice(0, 10),
     fecha_vencimiento: fechaVencimiento.toISOString().slice(0, 10),
+    created_at: fechaInicio.toISOString(),
   };
 
   const { data: existing, error: findError } = await supabase

@@ -4,16 +4,20 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 
-export type AddStudentState = {
+export type StudentFormState = {
   error: string | null;
 };
 
 const PHONE_LOCAL_MX = /^\d{10}$/;
 
-export async function addStudent(
-  _prevState: AddStudentState,
-  formData: FormData
-): Promise<AddStudentState> {
+type ParsedStudentForm =
+  | { error: string; data?: undefined }
+  | {
+      error: null;
+      data: { nombre: string; telefono: string; objetivo_peso_grasa: number | null };
+    };
+
+function parseStudentForm(formData: FormData): ParsedStudentForm {
   const nombre = String(formData.get("nombre") ?? "").trim();
   const telefonoLocal = String(formData.get("telefono_local") ?? "").replace(
     /\D/g,
@@ -31,19 +35,30 @@ export async function addStudent(
     };
   }
 
-  const telefono = `+52${telefonoLocal}`;
-
   const objetivo_peso_grasa = objetivoRaw ? Number(objetivoRaw) : null;
 
   if (objetivoRaw && (Number.isNaN(objetivo_peso_grasa) || objetivo_peso_grasa! < 0)) {
     return { error: "El objetivo de peso/grasa debe ser un numero valido." };
   }
 
+  return {
+    error: null,
+    data: { nombre, telefono: `+52${telefonoLocal}`, objetivo_peso_grasa },
+  };
+}
+
+export async function addStudent(
+  _prevState: StudentFormState,
+  formData: FormData
+): Promise<StudentFormState> {
+  const parsed = parseStudentForm(formData);
+  if (!parsed.data) return { error: parsed.error };
+
   const supabase = await createClient();
 
   const { data: student, error: studentError } = await supabase
     .from("students")
-    .insert({ nombre, telefono, objetivo_peso_grasa })
+    .insert(parsed.data)
     .select("id")
     .single();
 
@@ -67,6 +82,46 @@ export async function addStudent(
     return {
       error: `No se pudo crear la membresia: ${membershipError.message}`,
     };
+  }
+
+  revalidatePath("/");
+
+  return { error: null };
+}
+
+export async function updateStudent(
+  studentId: string,
+  _prevState: StudentFormState,
+  formData: FormData
+): Promise<StudentFormState> {
+  const parsed = parseStudentForm(formData);
+  if (!parsed.data) return { error: parsed.error };
+
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("students")
+    .update(parsed.data)
+    .eq("id", studentId);
+
+  if (error) {
+    return { error: `No se pudo actualizar al alumno: ${error.message}` };
+  }
+
+  revalidatePath("/");
+
+  return { error: null };
+}
+
+export async function deleteStudent(
+  studentId: string
+): Promise<StudentFormState> {
+  const supabase = await createClient();
+
+  const { error } = await supabase.from("students").delete().eq("id", studentId);
+
+  if (error) {
+    return { error: `No se pudo eliminar al alumno: ${error.message}` };
   }
 
   revalidatePath("/");
