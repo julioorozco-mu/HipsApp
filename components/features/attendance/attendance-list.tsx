@@ -10,6 +10,10 @@ export type AttendanceStudent = {
   nombre: string;
   current_streak: number;
   highest_streak: number;
+  membership: {
+    fecha_vencimiento: string;
+    estado: "activa" | "por_vencer" | "vencida";
+  } | null;
 };
 
 type OptimisticStudent = AttendanceStudent & { marked: boolean };
