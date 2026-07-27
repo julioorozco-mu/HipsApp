@@ -1,4 +1,6 @@
 import { AttendanceList } from "@/components/features/attendance/attendance-list";
+import { AddStudentDialog } from "@/components/features/students/add-student-dialog";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function Home() {
@@ -24,7 +26,23 @@ export default async function Home() {
         </p>
       </header>
 
-      <AttendanceList students={students} />
+      <AddStudentDialog />
+
+      {students.length === 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Aun no hay alumnos registrados</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Registra tu primer alumno con membresia activa para comenzar a
+              pasar lista.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <AttendanceList students={students} />
+      )}
     </main>
   );
 }
