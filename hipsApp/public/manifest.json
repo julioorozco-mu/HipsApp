@@ -4,7 +4,7 @@
   "description": "Gestion de asistencias, membresias y rachas para la academia Hipsdance.",
   "start_url": "/",
   "scope": "/",
-  "display": "standalone",
+  "display": "fullscreen",
   "orientation": "portrait-primary",
   "background_color": "#0f0f13",
   "theme_color": "#7c3aed",
