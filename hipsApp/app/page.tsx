@@ -4,24 +4,13 @@ import {
   CalendarDays,
   Clock3,
   Flame,
-  House,
-  Menu,
-  MessageSquareMore,
-  ShieldCheck,
   UserRoundCheck,
   UsersRound,
 } from "lucide-react";
 
+import { AppNav } from "@/components/app-nav";
 import { Card } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
-
-const navItems = [
-  { label: "Inicio", href: "/", icon: House },
-  { label: "Alumnos", href: "/alumnos", icon: UsersRound },
-  { label: "Asistencia", href: "/asistencia", icon: ShieldCheck },
-  { label: "Mensajes", href: "/mensajes", icon: MessageSquareMore },
-  { label: "Más", href: "/mas", icon: Menu },
-] as const;
 
 const classTimeFormatter = new Intl.DateTimeFormat("es-MX", {
   hour: "numeric",
@@ -190,33 +179,7 @@ export default async function Home() {
           </Card>
         </div>
 
-        <nav
-          aria-label="Navegación principal"
-          className="sticky bottom-0 z-10 grid grid-cols-5 border-t border-border/70 bg-card px-2 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
-        >
-          {navItems.map(({ label, href, icon: Icon }) => {
-            const isActive = href === "/";
-            return (
-              <Link
-                key={label}
-                href={href}
-                aria-current={isActive ? "page" : undefined}
-                className={`flex min-h-24 flex-col items-center justify-center gap-1 rounded-xl text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary ${
-                  isActive
-                    ? "text-primary"
-                    : "text-muted-foreground hover:bg-secondary hover:text-foreground active:bg-accent"
-                }`}
-              >
-                <Icon
-                  className="size-7"
-                  fill={isActive ? "currentColor" : "none"}
-                  strokeWidth={2.25}
-                />
-                {label}
-              </Link>
-            );
-          })}
-        </nav>
+        <AppNav active="/" />
       </div>
     </main>
   );

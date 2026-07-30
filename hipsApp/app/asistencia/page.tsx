@@ -1,26 +1,20 @@
-import Link from "next/link";
 import {
-  House,
-  Menu,
-  MessageSquareMore,
   MoreHorizontal,
-  ShieldCheck,
-  UsersRound,
 } from "lucide-react";
 
+import { AppNav } from "@/components/app-nav";
 import {
   AttendanceList,
   type AttendanceStudent,
 } from "@/components/features/attendance/attendance-list";
 import { createClient } from "@/lib/supabase/server";
 
-const navItems = [
-  { label: "Inicio", href: "/", icon: House },
-  { label: "Alumnos", href: "/alumnos", icon: UsersRound },
-  { label: "Asistencia", href: "/asistencia", icon: ShieldCheck },
-  { label: "Mensajes", href: "/mensajes", icon: MessageSquareMore },
-  { label: "Más", href: "/mas", icon: Menu },
-] as const;
+const classTimeFormatter = new Intl.DateTimeFormat("es-MX", {
+  hour: "numeric",
+  minute: "2-digit",
+  hour12: true,
+  timeZone: "America/Mexico_City",
+});
 
 export default async function AttendancePage() {
   const supabase = await createClient();
@@ -59,12 +53,7 @@ export default async function AttendancePage() {
     membership: null,
   }));
   const classTime = session?.starts_at
-    ? new Intl.DateTimeFormat("es-MX", {
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-        timeZone: "America/Mexico_City",
-      }).format(new Date(session.starts_at))
+    ? classTimeFormatter.format(new Date(session.starts_at))
     : null;
 
   return (
@@ -100,33 +89,7 @@ export default async function AttendancePage() {
           )}
         </div>
 
-        <nav
-          aria-label="Navegación principal"
-          className="sticky bottom-0 z-10 grid grid-cols-5 border-t border-border/70 bg-card px-2 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
-        >
-          {navItems.map(({ label, href, icon: Icon }) => {
-            const isActive = href === "/asistencia";
-            return (
-              <Link
-                key={label}
-                href={href}
-                aria-current={isActive ? "page" : undefined}
-                className={`flex min-h-24 flex-col items-center justify-center gap-1 rounded-xl text-[0.7rem] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary sm:text-sm ${
-                  isActive
-                    ? "text-primary"
-                    : "text-muted-foreground hover:bg-secondary hover:text-foreground active:bg-accent"
-                }`}
-              >
-                <Icon
-                  className="size-7"
-                  fill={isActive ? "currentColor" : "none"}
-                  strokeWidth={2.25}
-                />
-                {label}
-              </Link>
-            );
-          })}
-        </nav>
+        <AppNav active="/asistencia" />
       </div>
     </main>
   );

@@ -70,6 +70,7 @@ export async function addStudent(
   }
 
   revalidatePath("/");
+  revalidatePath("/alumnos");
   revalidatePath("/asistencia");
 
   return { error: null };
@@ -100,6 +101,7 @@ export async function updateStudent(
   }
 
   revalidatePath("/");
+  revalidatePath("/alumnos");
   revalidatePath("/asistencia");
 
   return { error: null };
@@ -124,6 +126,7 @@ export async function deleteStudent(
   }
 
   revalidatePath("/");
+  revalidatePath("/alumnos");
   revalidatePath("/asistencia");
 
   return { error: null };

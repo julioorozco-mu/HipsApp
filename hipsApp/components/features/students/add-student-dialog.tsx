@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useActionState } from "react";
+import { Plus } from "lucide-react";
 
 import { addStudent, type StudentFormState } from "@/app/actions/students";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,7 @@ import { Label } from "@/components/ui/label";
 
 const initialState: StudentFormState = { error: null };
 
-export function AddStudentDialog() {
+export function AddStudentDialog({ compact = false }: { compact?: boolean }) {
   const [open, setOpen] = useState(false);
   const [state, formAction, isPending] = useActionState(
     addStudent,
@@ -40,10 +41,17 @@ export function AddStudentDialog() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
-          <Button className="h-12 w-full rounded-xl text-base font-semibold" />
+          <Button
+            aria-label={compact ? "Registrar alumno" : undefined}
+            className={
+              compact
+                ? "size-14 rounded-full shadow-lg"
+                : "h-12 w-full rounded-xl text-base font-semibold"
+            }
+          />
         }
       >
-        + Nuevo Alumno
+        {compact ? <Plus className="size-7" /> : "+ Nuevo Alumno"}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
