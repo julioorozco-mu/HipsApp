@@ -39,7 +39,7 @@ export default async function Home() {
         <div className="flex-1 px-5 pt-6 pb-7 sm:px-8 sm:pt-12">
           <header className="flex items-center justify-between gap-4">
             <h1 className="text-[2rem] leading-tight font-bold tracking-[-0.04em] sm:text-4xl">
-              Hola, Mariana <span aria-hidden="true">👋</span>
+              Hola, Andrea E. <span aria-hidden="true">👋</span>
             </h1>
             <button
               type="button"
