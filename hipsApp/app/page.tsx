@@ -23,15 +23,50 @@ const navItems = [
   { label: "Más", href: "/mas", icon: Menu },
 ] as const;
 
+const classTimeFormatter = new Intl.DateTimeFormat("es-MX", {
+  hour: "numeric",
+  minute: "2-digit",
+  hour12: true,
+  timeZone: "America/Mexico_City",
+});
+
 export default async function Home() {
   const supabase = await createClient();
-  const [{ count: studentCount }, { count: expiringCount }] = await Promise.all([
-    supabase.from("students").select("*", { count: "exact", head: true }),
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const results = user
+    ? await Promise.all([
     supabase
-      .from("memberships")
+      .from("students")
       .select("*", { count: "exact", head: true })
-      .eq("estado", "por_vencer"),
-  ]);
+      .eq("active", true),
+    supabase
+      .from("student_overview")
+      .select("*", { count: "exact", head: true })
+      .eq("membership_status", "por_vencer"),
+    supabase
+      .from("session_overview")
+      .select("class_name, starts_at")
+      .in("status", ["programada", "en_curso"])
+      .order("starts_at")
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("profiles")
+      .select("full_name, current_class_streak")
+      .eq("id", user.id)
+      .maybeSingle(),
+      ])
+    : null;
+  const studentCount = results?.[0].count ?? 0;
+  const expiringCount = results?.[1].count ?? 0;
+  const nextSession = results?.[2].data ?? null;
+  const profile = results?.[3].data ?? null;
+  const classStreak = profile?.current_class_streak ?? 0;
+  const nextClassTime = nextSession?.starts_at
+    ? classTimeFormatter.format(new Date(nextSession.starts_at))
+    : null;
 
   return (
     <main className="min-h-dvh bg-[oklch(0.965_0.018_300)] p-2 sm:p-5">
@@ -39,7 +74,8 @@ export default async function Home() {
         <div className="flex-1 px-5 pt-6 pb-7 sm:px-8 sm:pt-12">
           <header className="flex items-center justify-between gap-4">
             <h1 className="text-[2rem] leading-tight font-bold tracking-[-0.04em] sm:text-4xl">
-              Hola, Andrea E. <span aria-hidden="true">👋</span>
+              Hola{profile?.full_name ? `, ${profile.full_name}` : ""}{" "}
+              <span aria-hidden="true">👋</span>
             </h1>
             <button
               type="button"
@@ -60,16 +96,18 @@ export default async function Home() {
             <div className="mt-1 grid grid-cols-3 gap-3">
               <Card className="h-[7.25rem] items-center justify-center gap-1 rounded-3xl border-0 bg-[oklch(0.59_0.25_295)] px-2 py-2 text-center text-[oklch(0.985_0.006_300)] ring-0 shadow-[inset_0_1px_oklch(1_0_0/0.18)]">
                 <CalendarDays className="size-8" strokeWidth={2.5} />
-                <p className="mt-1 text-base">Clase</p>
+                <p className="mt-1 truncate text-base">
+                  {nextSession?.class_name ?? "Sin clase"}
+                </p>
                 <p className="text-[1.65rem] leading-none font-semibold whitespace-nowrap">
-                  7:00 PM
+                  {nextClassTime ?? "—"}
                 </p>
               </Card>
 
               <Card className="h-[7.25rem] items-center justify-center gap-1 rounded-3xl border-0 bg-[oklch(0.91_0.08_125)] px-2 py-2 text-center ring-0">
                 <UsersRound className="size-9" fill="currentColor" strokeWidth={1.5} />
                 <p className="mt-1 text-[2rem] leading-none font-bold">
-                  {studentCount ?? 0}
+                  {studentCount}
                 </p>
                 <p className="text-base font-medium">alumnos</p>
               </Card>
@@ -77,7 +115,7 @@ export default async function Home() {
               <Card className="h-[7.25rem] items-center justify-center gap-1 rounded-3xl border-0 bg-[oklch(0.92_0.18_110)] px-2 py-2 text-center ring-0">
                 <Clock3 className="size-9" strokeWidth={2.25} />
                 <p className="mt-1 text-[2rem] leading-none font-bold">
-                  {expiringCount ?? 0}
+                  {expiringCount}
                 </p>
                 <p className="text-base font-medium">por vencer</p>
               </Card>
@@ -128,14 +166,26 @@ export default async function Home() {
               <p className="text-lg font-semibold text-primary">¡Sigue así!</p>
             </div>
             <p className="row-span-2 text-center">
-              <span className="block text-5xl leading-none font-bold">5</span>
-              <span className="text-lg font-semibold">días</span>
+              <span className="block text-5xl leading-none font-bold">
+                {classStreak}
+              </span>
+              <span className="text-lg font-semibold">clases</span>
             </p>
-            <div className="col-start-2 flex items-center gap-1 text-primary" aria-label="Seis de siete clases completadas">
-              {Array.from({ length: 6 }, (_, index) => (
-                <Flame key={index} className="size-6" fill="currentColor" />
+            <div
+              className="col-start-2 flex items-center gap-1 text-primary"
+              aria-label={`${classStreak} clases consecutivas`}
+            >
+              {Array.from({ length: 7 }, (_, index) => (
+                <Flame
+                  key={index}
+                  className={`size-6 ${
+                    index < Math.min(classStreak, 7)
+                      ? "text-primary"
+                      : "text-[oklch(0.78_0.015_300)]"
+                  }`}
+                  fill="currentColor"
+                />
               ))}
-              <Flame className="size-6 text-[oklch(0.78_0.015_300)]" />
             </div>
           </Card>
         </div>

@@ -9,44 +9,40 @@ export type RenewMembershipResult = {
 };
 
 export async function renewMembership(
-  studentId: string,
-  monthsToAdd = 1
+  studentId: string
 ): Promise<RenewMembershipResult> {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const fechaInicio = new Date();
-  const fechaVencimiento = new Date(fechaInicio);
-  fechaVencimiento.setMonth(fechaVencimiento.getMonth() + monthsToAdd);
-
-  const payload = {
-    student_id: studentId,
-    estado: "activa" as const,
-    fecha_inicio: fechaInicio.toISOString().slice(0, 10),
-    fecha_vencimiento: fechaVencimiento.toISOString().slice(0, 10),
-    created_at: fechaInicio.toISOString(),
-  };
-
-  const { data: existing, error: findError } = await supabase
-    .from("memberships")
-    .select("id")
-    .eq("student_id", studentId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (findError) {
-    return { error: `No se pudo verificar la membresia: ${findError.message}` };
+  if (!user) {
+    return { error: "Inicia sesión para registrar el pago." };
   }
 
-  const { error: writeError } = existing
-    ? await supabase.from("memberships").update(payload).eq("id", existing.id)
-    : await supabase.from("memberships").insert(payload);
+  const { data: plan, error: planError } = await supabase
+    .from("membership_plans")
+    .select("id")
+    .eq("kind", "mensual")
+    .eq("active", true)
+    .single();
 
-  if (writeError) {
-    return { error: `No se pudo registrar el pago: ${writeError.message}` };
+  if (planError) {
+    return { error: `No se encontró el plan mensual: ${planError.message}` };
+  }
+
+  const { error } = await supabase.rpc("register_membership_payment", {
+    p_method: "efectivo",
+    p_plan_id: plan.id,
+    p_student_id: studentId,
+  });
+
+  if (error) {
+    return { error: `No se pudo registrar el pago: ${error.message}` };
   }
 
   revalidatePath("/");
+  revalidatePath("/asistencia");
 
   return { error: null };
 }

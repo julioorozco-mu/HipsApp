@@ -51,40 +51,26 @@ export async function addStudent(
   _prevState: StudentFormState,
   formData: FormData
 ): Promise<StudentFormState> {
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getUser();
+
+  if (!auth.user) {
+    return { error: "Inicia sesión para registrar alumnos." };
+  }
+
   const parsed = parseStudentForm(formData);
   if (!parsed.data) return { error: parsed.error };
 
-  const supabase = await createClient();
-
-  const { data: student, error: studentError } = await supabase
+  const { error } = await supabase
     .from("students")
-    .insert(parsed.data)
-    .select("id")
-    .single();
+    .insert(parsed.data);
 
-  if (studentError) {
-    return { error: `No se pudo registrar al alumno: ${studentError.message}` };
-  }
-
-  const fechaInicio = new Date();
-  const fechaVencimiento = new Date(fechaInicio);
-  fechaVencimiento.setMonth(fechaVencimiento.getMonth() + 1);
-
-  const { error: membershipError } = await supabase.from("memberships").insert({
-    student_id: student.id,
-    estado: "activa",
-    fecha_inicio: fechaInicio.toISOString().slice(0, 10),
-    fecha_vencimiento: fechaVencimiento.toISOString().slice(0, 10),
-  });
-
-  if (membershipError) {
-    await supabase.from("students").delete().eq("id", student.id);
-    return {
-      error: `No se pudo crear la membresia: ${membershipError.message}`,
-    };
+  if (error) {
+    return { error: `No se pudo registrar al alumno: ${error.message}` };
   }
 
   revalidatePath("/");
+  revalidatePath("/asistencia");
 
   return { error: null };
 }
@@ -94,10 +80,15 @@ export async function updateStudent(
   _prevState: StudentFormState,
   formData: FormData
 ): Promise<StudentFormState> {
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getUser();
+
+  if (!auth.user) {
+    return { error: "Inicia sesión para actualizar alumnos." };
+  }
+
   const parsed = parseStudentForm(formData);
   if (!parsed.data) return { error: parsed.error };
-
-  const supabase = await createClient();
 
   const { error } = await supabase
     .from("students")
@@ -109,6 +100,7 @@ export async function updateStudent(
   }
 
   revalidatePath("/");
+  revalidatePath("/asistencia");
 
   return { error: null };
 }
@@ -117,6 +109,13 @@ export async function deleteStudent(
   studentId: string
 ): Promise<StudentFormState> {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Inicia sesión para eliminar alumnos." };
+  }
 
   const { error } = await supabase.from("students").delete().eq("id", studentId);
 
@@ -125,6 +124,7 @@ export async function deleteStudent(
   }
 
   revalidatePath("/");
+  revalidatePath("/asistencia");
 
   return { error: null };
 }
