@@ -101,13 +101,19 @@ export default async function Home() {
                 <p className="text-base font-medium">alumnos</p>
               </Card>
 
-              <Card className="h-[7.25rem] items-center justify-center gap-1 rounded-3xl border-0 bg-[oklch(0.92_0.18_110)] px-2 py-2 text-center ring-0">
-                <Clock3 className="size-9" strokeWidth={2.25} />
-                <p className="mt-1 text-[2rem] leading-none font-bold">
-                  {expiringCount}
-                </p>
-                <p className="text-base font-medium">por vencer</p>
-              </Card>
+              <Link
+                href="/membresias"
+                aria-label={`${expiringCount} membresías por vencer`}
+                className="rounded-3xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              >
+                <Card className="h-[7.25rem] items-center justify-center gap-1 rounded-3xl border-0 bg-[oklch(0.92_0.18_110)] px-2 py-2 text-center ring-0 transition-colors hover:bg-[oklch(0.89_0.19_110)]">
+                  <Clock3 className="size-9" strokeWidth={2.25} />
+                  <p className="mt-1 text-[2rem] leading-none font-bold">
+                    {expiringCount}
+                  </p>
+                  <p className="text-base font-medium">por vencer</p>
+                </Card>
+              </Link>
             </div>
           </section>
 
