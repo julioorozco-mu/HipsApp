@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { Search } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import {
   saveAttendance,
@@ -44,6 +45,7 @@ export function AttendanceList({
   >({});
   const [message, setMessage] = useState("");
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
 
   const filteredStudents = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -63,7 +65,11 @@ export function AttendanceList({
           status: selections[student.id],
         }))
       );
-      setMessage(result.error ?? "Asistencia guardada");
+      if (result.error) {
+        setMessage(result.error);
+        return;
+      }
+      router.push(`/asistencia/finalizar?session=${sessionId}`);
     });
   }
 
@@ -165,9 +171,7 @@ export function AttendanceList({
             role="status"
             className={cn(
               "mb-2 text-center text-sm font-medium",
-              message === "Asistencia guardada"
-                ? "text-[oklch(0.48_0.14_150)]"
-                : "text-destructive"
+              "text-destructive"
             )}
           >
             {message}
