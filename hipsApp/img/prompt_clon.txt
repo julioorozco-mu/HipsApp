@@ -1,0 +1,62 @@
+Muy buena===================PROMPT PARA CREAR INTERFACES CON UNA IMAGEN DE REFERENCIA
+codex -i ".\img\02-inicio.png" "Primero lee CLAUDE.md y revisa la estructura actual del repositorio. Usa 02-inicio.png como referencia visual. Implementa únicamente la pantalla Inicio para instructores con Next.js App Router, TypeScript estricto, Tailwind CSS y shadcn/ui. Debe ser mobile-first y reproducir fielmente colores, jerarquía, tarjetas, navegación y estados. No implementes otras pantallas y ejecuta las validaciones disponibles al terminar."
+
+"Primero lee CLAUDE.md y analiza la estructura, rutas y componentes actuales del repositorio.
+
+Referencias visuales:
+- tablero_ui_final.png define el sistema visual general.
+- 01-acceso.png corresponde a la pantalla de autenticación.
+- 04-alumnos.png corresponde al listado administrativo de alumnos para instructores.
+
+Implementa únicamente estas dos pantallas:
+
+1. Acceso:
+- Formulario de correo y contraseña.
+- Estados de carga y error.
+- Integración de la autenticación. 
+- Crea usuario Superadmin admin@hips-app.vercel.com. 
+
+2. Alumnos:
+- Buscador.
+- Filtros Todos, Activos y Vencidos.
+- Tarjetas con estado de membresía y racha.
+- Botón para registrar un alumno.
+- Navegación hacia el perfil del alumno solo si la ruta ya existe; de lo contrario, deja el enlace preparado sin implementar esa pantalla.
+
+Ambas pantallas deben:
+
+- Compartir componentes, paleta, tipografías y navegación con Inicio.
+- Ser mobile-first.
+- Usar Next.js App Router, TypeScript estricto, Tailwind CSS y shadcn/ui.
+- Usar MCP chrome-devtools para validación visual. 
+- Usar MCP Supabase cuando sea necesario leer o escribir datos. 
+- Ejecutar typecheck, lint y las validaciones disponibles.
+- No implementar ninguna pantalla adicional."
+
+Bueno==========
+Actúa como un Diseñador UI y Desarrollador
+  Frontend experto. La imagen adjunta es el "Diseño Objetivo" (la interfaz exacta, limpia y estética que quiero
+  lograr).  El objeto JSON representa los tokens de diseño y datos exactos de la interfaz que quiero lograr.
+
+  Analiza las diferencias visuales (tipografía, padding, márgenes, bordes redondeados, colores exactos, sombras,
+  tamaños de iconos y alineación) y MODIFICA EL CÓDIGO inyectando los datos del JSON para que quede exactamente igual
+  al "Diseño Objetivo".
+
+  Optimiza las clases, estilos y la estructura visual para lograr el clon perfecto.
+================
+PROMPT PARA EXTRAER JSON
+Actúa como un extractor de tokens de diseño. Analiza la imagen de la interfaz y entrégame un objeto JSON que contenga: los colores HEX exactos de cada tarjeta, las fuentes, los tamaños estimados de texto, los espaciados (paddings) visuales y el contenido de los textos de cada sección. El objetivo principal de este JSON sera inyectarlo en el diseño actual de mi PWA 
+
+======
+
+PROMPT PARA MEJORAR IMAGEN MOCKUP===========
+Analiza la estructura, colores y textos de esta interfaz. Actúa como un diseñador UI y genera una imagen completamente limpia en alta definicion, recreando exactamente los mismos elementos con tipografía nítida y moderna
+
+=============
+Crear tablero de presentación UI de alta fidelidad
+
+Crea un tablero de presentación UI de alta fidelidad que muestre todas las pantallas finales de una aplicación móvil, ordenadas en una sola imagen y listas para implementarse en producción del PWA de un negocio de Zumba. Lee el contexto adjunto del PWA.
+
+
+
+ crearé PRODUCT.md/DESIGN.md

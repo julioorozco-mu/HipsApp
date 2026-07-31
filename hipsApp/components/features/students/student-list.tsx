@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Flame, Search } from "lucide-react";
+import Link from "next/link";
 
 import { AddStudentDialog } from "@/components/features/students/add-student-dialog";
 import { Input } from "@/components/ui/input";
@@ -97,9 +98,9 @@ export function StudentList({ students }: { students: StudentListItem[] }) {
           <ul className="divide-y">
             {visibleStudents.map((student, index) => (
               <li key={student.id}>
-                <div
-                  data-profile-href={`/alumnos/${student.id}`}
-                  className="grid min-h-20 grid-cols-[auto_1fr_auto] items-center gap-3 px-3 py-2"
+                <Link
+                  href={`/alumnos/${student.id}`}
+                  className="grid min-h-20 grid-cols-[auto_1fr_auto] items-center gap-3 px-3 py-2 transition-colors hover:bg-secondary/60 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary active:bg-accent"
                 >
                   <span
                     aria-hidden="true"
@@ -128,7 +129,7 @@ export function StudentList({ students }: { students: StudentListItem[] }) {
                     </span>
                     <span className="block text-[0.65rem] text-muted-foreground">racha</span>
                   </span>
-                </div>
+                </Link>
               </li>
             ))}
           </ul>
