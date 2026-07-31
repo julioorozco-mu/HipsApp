@@ -5,6 +5,7 @@ import {
   ArrowLeftRight,
   Banknote,
   Check,
+  ChevronDown,
   CreditCard,
 } from "lucide-react";
 
@@ -25,12 +26,28 @@ type Plan = {
 };
 
 const initialState: RegisterPaymentState = { error: null };
+const currencyFormatter = new Intl.NumberFormat("es-MX", {
+  currency: "MXN",
+  currencyDisplay: "narrowSymbol",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+  style: "currency",
+});
 
 const methods = [
   { value: "efectivo", label: "Efectivo", icon: Banknote },
   { value: "transferencia", label: "Transferencia", icon: ArrowLeftRight },
   { value: "tarjeta", label: "Tarjeta", icon: CreditCard },
 ] as const;
+
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+}
 
 export function PaymentForm({
   initialStudentId,
@@ -48,7 +65,16 @@ export function PaymentForm({
   const [planId, setPlanId] = useState(
     plans.find(({ kind }) => kind === "mensual")?.id ?? plans[0]?.id ?? ""
   );
+  const [studentId, setStudentId] = useState(
+    students.some(({ id }) => id === initialStudentId)
+      ? initialStudentId
+      : students[0]?.id ?? ""
+  );
+  const [method, setMethod] = useState<(typeof methods)[number]["value"]>(
+    "efectivo"
+  );
   const selectedPlan = plans.find((plan) => plan.id === planId);
+  const selectedStudent = students.find((student) => student.id === studentId);
 
   return (
     <form action={formAction} className="flex flex-1 flex-col">
@@ -56,19 +82,32 @@ export function PaymentForm({
         <Label htmlFor="studentId" className="text-base">
           Seleccionar alumno
         </Label>
-        <select
-          id="studentId"
-          name="studentId"
-          required
-          defaultValue={initialStudentId ?? students[0]?.id}
-          className="mt-2 min-h-14 w-full rounded-xl border border-input bg-card px-4 text-base outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          {students.map((student) => (
-            <option key={student.id} value={student.id}>
-              {student.nombre}
-            </option>
-          ))}
-        </select>
+        <div className="relative mt-2">
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1/2 left-4 z-10 grid size-9 -translate-y-1/2 place-items-center rounded-full bg-[oklch(0.64_0.18_150)] text-xs font-bold text-[oklch(0.985_0.006_150)]"
+          >
+            {selectedStudent ? initials(selectedStudent.nombre) : "—"}
+          </span>
+          <select
+            id="studentId"
+            name="studentId"
+            required
+            value={studentId}
+            onChange={(event) => setStudentId(event.target.value)}
+            className="min-h-14 w-full appearance-none rounded-xl border border-input bg-card py-1 pr-12 pl-16 text-base outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            {students.map((student) => (
+              <option key={student.id} value={student.id}>
+                {student.nombre}
+              </option>
+            ))}
+          </select>
+          <ChevronDown
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1/2 right-4 size-5 -translate-y-1/2 text-muted-foreground"
+          />
+        </div>
       </div>
 
       <fieldset className="mt-6">
@@ -98,7 +137,7 @@ export function PaymentForm({
               ) : null}
               <span className="font-semibold">{plan.name}</span>
               <span className="mt-1 text-2xl">
-                ${Number(plan.price).toLocaleString("es-MX")}
+                {currencyFormatter.format(plan.price)}
               </span>
             </label>
           ))}
@@ -109,14 +148,12 @@ export function PaymentForm({
         <Label htmlFor="amount" className="text-base">
           Monto pagado
         </Label>
+        <input name="amount" type="hidden" value={selectedPlan?.price ?? ""} />
         <Input
           id="amount"
-          name="amount"
-          type="number"
-          min="0.01"
-          step="0.01"
+          type="text"
           required
-          value={selectedPlan?.price ?? ""}
+          value={selectedPlan ? currencyFormatter.format(selectedPlan.price) : ""}
           readOnly
           className="mt-2 h-14 rounded-xl px-4 text-xl font-semibold"
         />
@@ -125,22 +162,32 @@ export function PaymentForm({
       <fieldset className="mt-6">
         <legend className="text-base font-semibold">Método de pago</legend>
         <div className="mt-2 grid grid-cols-3 gap-2">
-          {methods.map(({ value, label, icon: Icon }, index) => (
-            <label
-              key={value}
-              className="has-checked:border-primary has-checked:bg-primary/5 has-checked:text-primary flex min-h-24 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-border px-1 text-center text-xs font-medium transition-colors hover:bg-secondary"
-            >
-              <input
-                type="radio"
-                name="method"
-                value={value}
-                defaultChecked={index === 0}
-                className="sr-only"
-              />
-              <Icon className="size-6" aria-hidden="true" />
-              {label}
-            </label>
-          ))}
+          {methods.map(({ value, label, icon: Icon }) => {
+            const isSelected = method === value;
+
+            return (
+              <label
+                key={value}
+                className="has-checked:border-primary has-checked:bg-primary/5 has-checked:text-primary relative flex min-h-24 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-border px-1 text-center text-xs font-medium transition-colors hover:bg-secondary"
+              >
+                <input
+                  type="radio"
+                  name="method"
+                  value={value}
+                  checked={isSelected}
+                  onChange={() => setMethod(value)}
+                  className="sr-only"
+                />
+                {isSelected ? (
+                  <span className="absolute top-3 right-3 grid size-6 place-items-center rounded-full bg-primary text-primary-foreground">
+                    <Check className="size-4" aria-hidden="true" />
+                  </span>
+                ) : null}
+                <Icon className="size-6" aria-hidden="true" />
+                {label}
+              </label>
+            );
+          })}
         </div>
       </fieldset>
 
