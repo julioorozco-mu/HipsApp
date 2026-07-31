@@ -39,9 +39,9 @@ export default async function RegisterPaymentPage(
   }
 
   return (
-    <main className="min-h-dvh bg-[oklch(0.965_0.018_300)] p-2 sm:p-5">
-      <div className="mx-auto flex min-h-[calc(100dvh-1rem)] w-full max-w-lg flex-col overflow-hidden rounded-[2.5rem] bg-card shadow-[0_18px_50px_oklch(0.25_0.04_300/0.14)] sm:min-h-[calc(100dvh-2.5rem)]">
-        <div className="flex flex-1 flex-col px-4 pt-5 pb-6 sm:px-7 sm:pt-9">
+    <main className="min-h-dvh bg-card sm:bg-[oklch(0.965_0.018_300)] sm:p-5">
+      <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col overflow-hidden bg-card sm:min-h-[calc(100dvh-2.5rem)] sm:rounded-[2.5rem] sm:shadow-[0_18px_50px_oklch(0.25_0.04_300/0.14)]">
+        <div className="flex flex-1 flex-col px-7 pt-4 pb-3 sm:pt-9 sm:pb-6">
           <header className="grid grid-cols-[3rem_1fr_3rem] items-center">
             <Link
               href="/membresias"
@@ -62,7 +62,7 @@ export default async function RegisterPaymentPage(
             </button>
           </header>
 
-          <div className="mt-6 flex flex-1">
+          <div className="mt-3 flex flex-1">
             <PaymentForm
               initialStudentId={initialStudentId}
               plans={plansResult.data.map((plan) => ({
