@@ -245,6 +245,7 @@ export type Database = {
       memberships: {
         Row: {
           cancelled_at: string | null
+          consumed_at: string | null
           created_at: string
           fecha_inicio: string
           fecha_vencimiento: string
@@ -254,6 +255,7 @@ export type Database = {
         }
         Insert: {
           cancelled_at?: string | null
+          consumed_at?: string | null
           created_at?: string
           fecha_inicio: string
           fecha_vencimiento: string
@@ -263,6 +265,7 @@ export type Database = {
         }
         Update: {
           cancelled_at?: string | null
+          consumed_at?: string | null
           created_at?: string
           fecha_inicio?: string
           fecha_vencimiento?: string
@@ -717,6 +720,7 @@ export type Database = {
         }
         Returns: {
           cancelled_at: string | null
+          consumed_at: string | null
           created_at: string
           fecha_inicio: string
           fecha_vencimiento: string

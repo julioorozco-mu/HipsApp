@@ -119,6 +119,7 @@ create table public.memberships (
   fecha_inicio date not null,
   fecha_vencimiento date not null,
   cancelled_at timestamptz,
+  consumed_at timestamptz,
   created_at timestamptz not null default now(),
   check (fecha_vencimiento >= fecha_inicio)
 );
@@ -271,6 +272,12 @@ select
   case
     when membership.id is null then 'sin_registro'
     when membership.cancelled_at is not null then 'vencida'
+    when membership.plan_kind = 'clase_suelta'
+      and (
+        membership.consumed_at is not null
+        or membership.fecha_vencimiento < local.today
+      ) then 'vencida'
+    when membership.plan_kind = 'clase_suelta' then 'activa'
     when membership.fecha_vencimiento < local.today then 'vencida'
     when membership.fecha_vencimiento <= local.today + 3 then 'por_vencer'
     else 'activa'
@@ -288,8 +295,10 @@ left join lateral (
   select
     m.id,
     p.name as plan_name,
+    p.kind as plan_kind,
     m.fecha_vencimiento,
-    m.cancelled_at
+    m.cancelled_at,
+    m.consumed_at
   from public.memberships m
   join public.membership_plans p on p.id = m.plan_id
   where m.student_id = s.id
@@ -336,6 +345,7 @@ declare
   v_plan public.membership_plans;
   v_membership public.memberships;
   v_today date;
+  v_expiration date;
 begin
   if (select auth.uid()) is null then
     raise exception 'authentication required';
@@ -354,6 +364,12 @@ begin
   from public.academy_settings
   where id;
 
+  v_expiration := case v_plan.kind
+    when 'mensual' then (v_today + interval '1 month')::date
+    when 'clase_suelta' then v_today
+    else v_today + (v_plan.duration_days - 1)
+  end;
+
   insert into public.memberships (
     student_id,
     plan_id,
@@ -364,7 +380,7 @@ begin
     p_student_id,
     p_plan_id,
     v_today,
-    v_today + (v_plan.duration_days - 1)
+    v_expiration
   )
   returning * into v_membership;
 
@@ -402,6 +418,7 @@ declare
   v_present uuid[] := coalesce(p_present, '{}'::uuid[]);
   v_absent uuid[] := coalesce(p_absent, '{}'::uuid[]);
   v_total integer;
+  v_today date;
 begin
   if (select auth.uid()) is null then
     raise exception 'authentication required';
@@ -431,6 +448,10 @@ begin
   if v_session.status in ('completada', 'cancelada') then
     raise exception 'class session is closed';
   end if;
+
+  select (now() at time zone timezone)::date into v_today
+  from public.academy_settings
+  where id;
 
   select count(*) into v_total
   from public.students
@@ -482,6 +503,27 @@ begin
   update public.students
   set current_streak = 0
   where id = any(v_absent);
+
+  with pass_to_consume as (
+    select (
+      select membership.id
+      from public.memberships membership
+      join public.membership_plans plan on plan.id = membership.plan_id
+      where membership.student_id = present.student_id
+        and plan.kind = 'clase_suelta'
+        and membership.cancelled_at is null
+        and membership.consumed_at is null
+        and membership.fecha_inicio <= v_today
+        and membership.fecha_vencimiento >= v_today
+      order by membership.created_at, membership.id
+      limit 1
+    ) as membership_id
+    from unnest(v_present) as present(student_id)
+  )
+  update public.memberships membership
+  set consumed_at = now()
+  from pass_to_consume selected
+  where membership.id = selected.membership_id;
 
   update public.class_sessions
   set

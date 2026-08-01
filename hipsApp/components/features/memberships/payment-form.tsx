@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import {
   ArrowLeftRight,
   Banknote,
+  CalendarDays,
   Check,
   ChevronDown,
   CreditCard,
@@ -16,8 +17,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { getMembershipExpirationDate } from "@/lib/membership";
 
-type Student = { id: string; nombre: string };
+type Student = { id: string; nombre: string; hasMembership: boolean };
 type Plan = {
   id: string;
   kind: "mensual" | "clase_suelta";
@@ -53,10 +55,12 @@ export function PaymentForm({
   initialStudentId,
   plans,
   students,
+  today,
 }: {
   initialStudentId?: string;
   plans: Plan[];
   students: Student[];
+  today: string;
 }) {
   const [state, formAction, pending] = useActionState(
     registerPayment,
@@ -75,6 +79,12 @@ export function PaymentForm({
   );
   const selectedPlan = plans.find((plan) => plan.id === planId);
   const selectedStudent = students.find((student) => student.id === studentId);
+  const expirationDate = selectedPlan
+    ? getMembershipExpirationDate(today, selectedPlan.kind)
+    : today;
+  const actionLabel = selectedStudent?.hasMembership
+    ? "Confirmar renovación"
+    : "Realizar pago";
 
   return (
     <form action={formAction} className="flex flex-1 flex-col">
@@ -144,6 +154,41 @@ export function PaymentForm({
         </div>
       </fieldset>
 
+      <div className="mt-6 grid grid-cols-2 gap-3">
+        <div>
+          <Label htmlFor="startDate" className="text-base">
+            Inicio
+          </Label>
+          <div className="relative mt-2">
+            <CalendarDays className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              id="startDate"
+              type="date"
+              value={today}
+              readOnly
+              aria-readonly="true"
+              className="h-14 rounded-xl pr-2 pl-10 text-sm"
+            />
+          </div>
+        </div>
+        <div>
+          <Label htmlFor="expirationDate" className="text-base">
+            Vence
+          </Label>
+          <div className="relative mt-2">
+            <CalendarDays className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              id="expirationDate"
+              type="date"
+              value={expirationDate}
+              readOnly
+              aria-readonly="true"
+              className="h-14 rounded-xl pr-2 pl-10 text-sm"
+            />
+          </div>
+        </div>
+      </div>
+
       <div className="mt-6">
         <Label htmlFor="amount" className="text-base">
           Monto pagado
@@ -203,7 +248,7 @@ export function PaymentForm({
         disabled={pending || !students.length || !plans.length}
         className="mt-auto min-h-14 rounded-xl text-base"
       >
-        {pending ? "Registrando..." : "Confirmar renovación"}
+        {pending ? "Registrando..." : actionLabel}
       </Button>
     </form>
   );

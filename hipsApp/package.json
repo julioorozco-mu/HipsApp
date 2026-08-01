@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test lib/streak.test.ts"
+    "test": "node --experimental-strip-types --test lib/*.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

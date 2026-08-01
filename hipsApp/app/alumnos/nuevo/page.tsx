@@ -14,7 +14,7 @@ const displayDateFormatter = new Intl.DateTimeFormat("es-MX", {
   day: "numeric",
   month: "long",
   year: "numeric",
-  timeZone: "UTC",
+  timeZone: "America/Mexico_City",
 });
 
 export default async function NewStudentPage({
