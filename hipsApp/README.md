@@ -16,6 +16,23 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+Copy `.env.example` to `.env.local` and configure the Supabase values before
+starting the application.
+
+## Spotify playlists
+
+The playlist feature uses Spotify's Authorization Code flow. Configure these
+server-only variables in Vercel:
+
+- `SPOTIFY_CLIENT_ID`
+- `SPOTIFY_CLIENT_SECRET`
+- `SPOTIFY_REDIRECT_URI` (`https://hips-app.vercel.app/api/spotify/callback`)
+- `SPOTIFY_TOKEN_ENCRYPTION_KEY` (32 random bytes encoded in Base64)
+
+Add the same redirect URI in the Spotify app dashboard. Access and refresh
+tokens are encrypted before they are stored in Supabase and are never exposed
+to browser code.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
