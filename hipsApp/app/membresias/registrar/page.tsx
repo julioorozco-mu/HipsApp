@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { AppNav } from "@/components/app-nav";
 import { PaymentForm } from "@/components/features/memberships/payment-form";
+import { isPaymentMethod } from "@/lib/payment";
 import { createClient } from "@/lib/supabase/server";
 
 const todayFormatter = new Intl.DateTimeFormat("en-CA", {
@@ -12,11 +13,28 @@ const todayFormatter = new Intl.DateTimeFormat("en-CA", {
 
 export default async function RegisterPaymentPage(
   props: {
-    searchParams: Promise<{ student?: string | string[] }>;
+    searchParams: Promise<{
+      amount?: string | string[];
+      method?: string | string[];
+      planId?: string | string[];
+      reference?: string | string[];
+      student?: string | string[];
+    }>;
   }
 ) {
-  const { student } = await props.searchParams;
+  const { amount, method, planId, reference, student } = await props.searchParams;
   const initialStudentId = typeof student === "string" ? student : undefined;
+  const initialPlanId = typeof planId === "string" ? planId : undefined;
+  const initialMethod = isPaymentMethod(method) ? method : undefined;
+  const amountValue = typeof amount === "string" ? Number(amount) : Number.NaN;
+  const initialAmount =
+    Number.isFinite(amountValue) &&
+    amountValue >= 0 &&
+    amountValue <= 99_999_999.99
+      ? amountValue.toFixed(2)
+      : undefined;
+  const initialReference =
+    typeof reference === "string" ? reference.slice(0, 100) : undefined;
   const supabase = await createClient();
   const {
     data: { user },
@@ -72,6 +90,10 @@ export default async function RegisterPaymentPage(
 
           <div className="mt-6 flex flex-1">
             <PaymentForm
+              initialAmount={initialAmount}
+              initialMethod={initialMethod}
+              initialPlanId={initialPlanId}
+              initialReference={initialReference}
               initialStudentId={initialStudentId}
               plans={plansResult.data.map((plan) => ({
                 ...plan,
@@ -83,7 +105,6 @@ export default async function RegisterPaymentPage(
                       {
                         id: student.id,
                         nombre: student.nombre,
-                        hasMembership: Boolean(student.membership_id),
                       },
                     ]
                   : []
