@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { formatIsoDate } from "@/lib/date";
 import { getMembershipExpirationDate } from "@/lib/membership";
 
 type Student = { id: string; nombre: string; hasMembership: boolean };
@@ -156,35 +157,25 @@ export function PaymentForm({
 
       <div className="mt-6 grid grid-cols-2 gap-3">
         <div>
-          <Label htmlFor="startDate" className="text-base">
-            Inicio
-          </Label>
-          <div className="relative mt-2">
+          <p className="text-base font-medium">Inicio</p>
+          <div
+            aria-label={`Inicio: ${formatIsoDate(today)}`}
+            className="relative mt-2 flex h-14 items-center rounded-xl border border-input bg-card pr-2 pl-10 text-sm"
+          >
             <CalendarDays className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              id="startDate"
-              type="date"
-              value={today}
-              readOnly
-              aria-readonly="true"
-              className="h-14 rounded-xl pr-2 pl-10 text-sm"
-            />
+            <time dateTime={today}>{formatIsoDate(today)}</time>
           </div>
         </div>
         <div>
-          <Label htmlFor="expirationDate" className="text-base">
-            Vence
-          </Label>
-          <div className="relative mt-2">
+          <p className="text-base font-medium">Vence</p>
+          <div
+            aria-label={`Vence: ${formatIsoDate(expirationDate)}`}
+            className="relative mt-2 flex h-14 items-center rounded-xl border border-input bg-card pr-2 pl-10 text-sm"
+          >
             <CalendarDays className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              id="expirationDate"
-              type="date"
-              value={expirationDate}
-              readOnly
-              aria-readonly="true"
-              className="h-14 rounded-xl pr-2 pl-10 text-sm"
-            />
+            <time dateTime={expirationDate}>
+              {formatIsoDate(expirationDate)}
+            </time>
           </div>
         </div>
       </div>

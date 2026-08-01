@@ -24,9 +24,12 @@ export default async function AttendancePage() {
   const results = user
     ? await Promise.all([
       supabase
-        .from("students")
-        .select("*")
+        .from("student_overview")
+        .select(
+          "id, nombre, telefono, objetivo_peso_grasa, current_streak, highest_streak"
+        )
         .eq("active", true)
+        .in("membership_status", ["activa", "por_vencer"])
         .order("nombre"),
       supabase
         .from("session_overview")
@@ -48,10 +51,21 @@ export default async function AttendancePage() {
     );
   }
 
-  const students: AttendanceStudent[] = data.map((student) => ({
-    ...student,
-    membership: null,
-  }));
+  const students: AttendanceStudent[] = data.flatMap((student) =>
+    student.id && student.nombre && student.telefono
+      ? [
+          {
+            id: student.id,
+            nombre: student.nombre,
+            telefono: student.telefono,
+            objetivo_peso_grasa: student.objetivo_peso_grasa,
+            current_streak: student.current_streak ?? 0,
+            highest_streak: student.highest_streak ?? 0,
+            membership: null,
+          },
+        ]
+      : []
+  );
   const classTime = session?.starts_at
     ? classTimeFormatter.format(new Date(session.starts_at))
     : null;
