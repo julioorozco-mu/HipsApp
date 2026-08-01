@@ -293,13 +293,15 @@ export function PaymentForm({
         </div>
       ) : null}
 
-      <Button
-        type="submit"
-        disabled={!students.length || !plans.length}
-        className="mt-auto min-h-14 rounded-xl text-base"
-      >
-        Revisar pago
-      </Button>
+      <div className="mt-auto pt-5">
+        <Button
+          type="submit"
+          disabled={!students.length || !plans.length}
+          className="min-h-14 w-full rounded-xl text-base"
+        >
+          Revisar pago
+        </Button>
+      </div>
     </form>
   );
 }

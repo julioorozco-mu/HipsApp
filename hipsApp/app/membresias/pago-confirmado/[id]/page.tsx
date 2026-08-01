@@ -164,7 +164,7 @@ export default async function PaymentConfirmedPage({
               <MessageCircle className="size-6" aria-hidden="true" />
               Compartir por WhatsApp
             </a>
-            <PrintReceiptButton />
+            <PrintReceiptButton paymentId={payment.id} folio={folio} />
             <Link
               href={`/alumnos/${payment.student_id}`}
               className="flex min-h-14 items-center justify-center rounded-xl bg-primary px-5 text-base font-semibold text-primary-foreground transition-colors hover:bg-primary/85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary active:bg-primary/75"
