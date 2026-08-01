@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { DateSelect } from "@/components/ui/date-select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { formatIsoDate } from "@/lib/date";
 
 const initialState: StudentFormState = { error: null };
 
@@ -79,19 +80,15 @@ export function NewStudentForm({ today }: { today: string }) {
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="fecha_ingreso" className="text-sm font-semibold">
+          <p className="text-sm font-semibold">
             Fecha de ingreso
-          </Label>
-          <div className="relative">
+          </p>
+          <div
+            aria-label={`Fecha de ingreso: ${formatIsoDate(today)}`}
+            className="relative flex h-12 items-center rounded-xl border border-input bg-card pr-4 pl-10 text-base"
+          >
             <CalendarDays className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              id="fecha_ingreso"
-              type="date"
-              value={today}
-              readOnly
-              aria-readonly="true"
-              className="h-12 rounded-xl pl-10 text-base"
-            />
+            <time dateTime={today}>{formatIsoDate(today)}</time>
           </div>
         </div>
 

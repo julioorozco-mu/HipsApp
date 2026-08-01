@@ -90,7 +90,7 @@ export function AttendanceList({
       {filteredStudents.length === 0 ? (
         <p className="py-10 text-center text-sm text-muted-foreground">
           {students.length === 0
-            ? "Aún no hay alumnos registrados."
+            ? "No hay alumnos con una membresía vigente."
             : `No encontramos alumnos con "${query}".`}
         </p>
       ) : (
