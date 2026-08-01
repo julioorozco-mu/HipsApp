@@ -10,6 +10,7 @@ export type StudentFormState = {
 };
 
 const PHONE_LOCAL_MX = /^\d{10}$/;
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function isValidIsoDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -31,6 +32,7 @@ type ParsedNewStudentForm =
       data: {
         nombre: string;
         telefono: string;
+        correo: string;
         objetivo_peso_grasa: number | null;
         cumpleanos: string;
         fecha_registro: string;
@@ -83,12 +85,17 @@ function parseNewStudentForm(formData: FormData): ParsedNewStudentForm {
 
   const cumpleanos = String(formData.get("cumpleanos") ?? "").trim();
   const fechaIngreso = String(formData.get("fecha_ingreso") ?? "").trim();
+  const correo = String(formData.get("correo") ?? "").trim().toLowerCase();
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Mexico_City",
   }).format(new Date());
 
   if (!isValidIsoDate(cumpleanos)) {
     return { error: "Selecciona la fecha de cumpleaños." };
+  }
+
+  if (!EMAIL.test(correo) || correo.length > 254) {
+    return { error: "Ingresa un correo válido." };
   }
 
   if (cumpleanos > today) {
@@ -107,6 +114,7 @@ function parseNewStudentForm(formData: FormData): ParsedNewStudentForm {
     error: null,
     data: {
       ...parsed.data,
+      correo,
       cumpleanos,
       fecha_registro: `${fechaIngreso}T12:00:00.000Z`,
     },
