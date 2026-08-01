@@ -1,4 +1,5 @@
 import { UserRoundPlus } from "lucide-react";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { AppNav } from "@/components/app-nav";
@@ -42,7 +43,13 @@ export default async function StudentsPage() {
             <h1 className="text-[2rem] leading-tight font-bold tracking-[-0.04em] sm:text-4xl">
               Alumnos
             </h1>
-            <UserRoundPlus className="size-7" aria-hidden="true" />
+            <Link
+              href="/alumnos/nuevo"
+              aria-label="Registrar alumno"
+              className="grid size-12 place-items-center rounded-full transition-colors hover:bg-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary active:bg-accent"
+            >
+              <UserRoundPlus className="size-7" aria-hidden="true" />
+            </Link>
           </header>
           <StudentList students={students} />
         </div>

@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Flame, Search } from "lucide-react";
 import Link from "next/link";
 
-import { AddStudentDialog } from "@/components/features/students/add-student-dialog";
+import { AddStudentLink } from "@/components/features/students/add-student-link";
 import { Input } from "@/components/ui/input";
 
 export type StudentListItem = {
@@ -141,7 +141,7 @@ export function StudentList({ students }: { students: StudentListItem[] }) {
       </div>
 
       <div className="sticky right-3 bottom-3 mt-auto flex justify-end pt-4">
-        <AddStudentDialog compact />
+        <AddStudentLink />
       </div>
     </div>
   );
