@@ -6,6 +6,7 @@ drop view if exists public.student_overview;
 drop trigger if exists on_auth_user_created on auth.users;
 drop function if exists public.handle_new_staff_user();
 drop function if exists public.save_attendance;
+drop function if exists public.confirm_membership_payment;
 drop function if exists public.register_membership_payment;
 drop function if exists public.mark_attendance(uuid);
 
@@ -129,7 +130,9 @@ create table public.payments (
   student_id uuid not null references public.students(id) on delete restrict,
   membership_id uuid not null references public.memberships(id) on delete restrict,
   amount numeric(10,2) not null check (amount > 0),
+  amount_received numeric(10,2) not null check (amount_received >= amount),
   method public.payment_method not null,
+  reference text check (reference is null or char_length(reference) <= 100),
   paid_at timestamptz not null default now(),
   recorded_by uuid references public.profiles(id) on delete set null
 );
@@ -388,6 +391,7 @@ begin
     student_id,
     membership_id,
     amount,
+    amount_received,
     method,
     recorded_by
   )
@@ -395,11 +399,108 @@ begin
     p_student_id,
     v_membership.id,
     v_plan.price,
+    v_plan.price,
     p_method,
     (select auth.uid())
   );
 
   return v_membership;
+end;
+$$;
+
+create or replace function public.confirm_membership_payment(
+  p_student_id uuid,
+  p_plan_id uuid,
+  p_method public.payment_method,
+  p_amount_received numeric,
+  p_reference text default null
+)
+returns table(payment_id uuid, membership_id uuid)
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_plan public.membership_plans;
+  v_membership public.memberships;
+  v_payment_id uuid;
+  v_today date;
+  v_expiration date;
+  v_reference text;
+begin
+  if (select auth.uid()) is null then
+    raise exception 'authentication required';
+  end if;
+
+  select * into v_plan
+  from public.membership_plans
+  where id = p_plan_id and active
+  for share;
+
+  if v_plan.id is null then
+    raise exception 'membership plan not found';
+  end if;
+
+  if p_amount_received is null or p_amount_received < v_plan.price then
+    raise exception 'amount received is less than plan price';
+  end if;
+
+  v_reference := nullif(btrim(p_reference), '');
+
+  if v_reference is not null and char_length(v_reference) > 100 then
+    raise exception 'payment reference is too long';
+  end if;
+
+  if p_method <> 'transferencia'::public.payment_method then
+    v_reference := null;
+  end if;
+
+  select (now() at time zone timezone)::date into v_today
+  from public.academy_settings
+  where id;
+
+  v_expiration := case v_plan.kind
+    when 'mensual' then (v_today + interval '1 month')::date
+    when 'clase_suelta' then v_today
+    else v_today + (v_plan.duration_days - 1)
+  end;
+
+  insert into public.memberships (
+    student_id,
+    plan_id,
+    fecha_inicio,
+    fecha_vencimiento
+  )
+  values (
+    p_student_id,
+    p_plan_id,
+    v_today,
+    v_expiration
+  )
+  returning * into v_membership;
+
+  insert into public.payments (
+    student_id,
+    membership_id,
+    amount,
+    amount_received,
+    method,
+    reference,
+    recorded_by
+  )
+  values (
+    p_student_id,
+    v_membership.id,
+    v_plan.price,
+    p_amount_received,
+    p_method,
+    v_reference,
+    (select auth.uid())
+  )
+  returning id into v_payment_id;
+
+  return query
+  select v_payment_id, v_membership.id;
 end;
 $$;
 
@@ -590,6 +691,13 @@ revoke all on function public.register_membership_payment(
   uuid,
   public.payment_method
 ) from public, anon;
+revoke all on function public.confirm_membership_payment(
+  uuid,
+  uuid,
+  public.payment_method,
+  numeric,
+  text
+) from public, anon;
 revoke all on function public.save_attendance(uuid, uuid[], uuid[])
   from public, anon;
 revoke all on function public.finish_class_session(uuid, text)
@@ -598,6 +706,13 @@ grant execute on function public.register_membership_payment(
   uuid,
   uuid,
   public.payment_method
+) to authenticated;
+grant execute on function public.confirm_membership_payment(
+  uuid,
+  uuid,
+  public.payment_method,
+  numeric,
+  text
 ) to authenticated;
 grant execute on function public.save_attendance(uuid, uuid[], uuid[])
   to authenticated;

@@ -4,16 +4,15 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
+import { isPaymentMethod } from "@/lib/payment";
 
 export type RenewMembershipResult = {
   error: string | null;
 };
 
-export type RegisterPaymentState = {
+export type ConfirmPaymentState = {
   error: string | null;
 };
-
-const paymentMethods = new Set(["efectivo", "transferencia", "tarjeta"]);
 
 export async function renewMembership(
   studentId: string
@@ -56,22 +55,24 @@ export async function renewMembership(
   return { error: null };
 }
 
-export async function registerPayment(
-  _state: RegisterPaymentState,
+export async function confirmPayment(
+  _state: ConfirmPaymentState,
   formData: FormData
-): Promise<RegisterPaymentState> {
+): Promise<ConfirmPaymentState> {
   const studentId = formData.get("studentId");
   const planId = formData.get("planId");
   const method = formData.get("method");
-  const amount = Number(formData.get("amount"));
+  const amountReceived = Number(formData.get("amount"));
+  const reference = String(formData.get("reference") ?? "").trim();
 
   if (
     typeof studentId !== "string" ||
     typeof planId !== "string" ||
-    typeof method !== "string" ||
-    !paymentMethods.has(method) ||
-    !Number.isFinite(amount) ||
-    amount <= 0
+    !isPaymentMethod(method) ||
+    !Number.isFinite(amountReceived) ||
+    amountReceived <= 0 ||
+    amountReceived > 99_999_999.99 ||
+    reference.length > 100
   ) {
     return { error: "Revisa los datos del pago." };
   }
@@ -90,21 +91,26 @@ export async function registerPayment(
     .eq("active", true)
     .single();
 
-  if (planError || Number(plan.price) !== amount) {
-    return { error: "El monto no coincide con el plan seleccionado." };
+  if (planError || amountReceived < Number(plan.price)) {
+    return { error: "El monto pagado no cubre el total del plan." };
   }
 
-  const { error } = await supabase.rpc("register_membership_payment", {
-    p_method: method as "efectivo" | "transferencia" | "tarjeta",
+  const { data, error } = await supabase.rpc("confirm_membership_payment", {
+    p_amount_received: amountReceived,
+    p_method: method,
     p_plan_id: planId,
+    p_reference: method === "transferencia" ? reference || undefined : undefined,
     p_student_id: studentId,
   });
 
   if (error) return { error: `No se pudo registrar el pago: ${error.message}` };
 
+  const paymentId = data?.[0]?.payment_id;
+  if (!paymentId) return { error: "No se pudo recuperar el comprobante." };
+
   revalidatePath("/");
   revalidatePath("/asistencia");
   revalidatePath("/membresias");
   revalidatePath(`/alumnos/${studentId}`);
-  redirect(`/alumnos/${studentId}`);
+  redirect(`/membresias/pago-confirmado/${paymentId}`);
 }

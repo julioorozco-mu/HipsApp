@@ -447,29 +447,35 @@ export type Database = {
       payments: {
         Row: {
           amount: number
+          amount_received: number
           id: string
           membership_id: string
           method: Database["public"]["Enums"]["payment_method"]
           paid_at: string
           recorded_by: string | null
+          reference: string | null
           student_id: string
         }
         Insert: {
           amount: number
+          amount_received: number
           id?: string
           membership_id: string
           method: Database["public"]["Enums"]["payment_method"]
           paid_at?: string
           recorded_by?: string | null
+          reference?: string | null
           student_id: string
         }
         Update: {
           amount?: number
+          amount_received?: number
           id?: string
           membership_id?: string
           method?: Database["public"]["Enums"]["payment_method"]
           paid_at?: string
           recorded_by?: string | null
+          reference?: string | null
           student_id?: string
         }
         Relationships: [
@@ -708,6 +714,19 @@ export type Database = {
       }
     }
     Functions: {
+      confirm_membership_payment: {
+        Args: {
+          p_amount_received: number
+          p_method: Database["public"]["Enums"]["payment_method"]
+          p_plan_id: string
+          p_reference?: string
+          p_student_id: string
+        }
+        Returns: {
+          membership_id: string
+          payment_id: string
+        }[]
+      }
       finish_class_session: {
         Args: { p_playlist_url?: string; p_session_id: string }
         Returns: undefined

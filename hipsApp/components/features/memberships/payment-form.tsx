@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useState } from "react";
 import {
   ArrowLeftRight,
   Banknote,
@@ -10,32 +10,24 @@ import {
   CreditCard,
 } from "lucide-react";
 
-import {
-  registerPayment,
-  type RegisterPaymentState,
-} from "@/app/actions/memberships";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatIsoDate } from "@/lib/date";
 import { getMembershipExpirationDate } from "@/lib/membership";
+import {
+  calculateChange,
+  formatCurrency,
+  type PaymentMethod,
+} from "@/lib/payment";
 
-type Student = { id: string; nombre: string; hasMembership: boolean };
+type Student = { id: string; nombre: string };
 type Plan = {
   id: string;
   kind: "mensual" | "clase_suelta";
   name: string;
   price: number;
 };
-
-const initialState: RegisterPaymentState = { error: null };
-const currencyFormatter = new Intl.NumberFormat("es-MX", {
-  currency: "MXN",
-  currencyDisplay: "narrowSymbol",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-  style: "currency",
-});
 
 const methods = [
   { value: "efectivo", label: "Efectivo", icon: Banknote },
@@ -53,42 +45,77 @@ function initials(name: string) {
 }
 
 export function PaymentForm({
+  initialAmount,
+  initialMethod = "efectivo",
+  initialPlanId,
+  initialReference = "",
   initialStudentId,
   plans,
   students,
   today,
 }: {
+  initialAmount?: string;
+  initialMethod?: PaymentMethod;
+  initialPlanId?: string;
+  initialReference?: string;
   initialStudentId?: string;
   plans: Plan[];
   students: Student[];
   today: string;
 }) {
-  const [state, formAction, pending] = useActionState(
-    registerPayment,
-    initialState
-  );
-  const [planId, setPlanId] = useState(
-    plans.find(({ kind }) => kind === "mensual")?.id ?? plans[0]?.id ?? ""
-  );
+  const initialPlan = plans.find(({ id }) => id === initialPlanId);
+  const defaultPlanId =
+    initialPlan?.id ??
+    plans.find(({ kind }) => kind === "mensual")?.id ??
+    plans[0]?.id ??
+    "";
+  const [planId, setPlanId] = useState(defaultPlanId);
   const [studentId, setStudentId] = useState(
     students.some(({ id }) => id === initialStudentId)
       ? initialStudentId
       : students[0]?.id ?? ""
   );
-  const [method, setMethod] = useState<(typeof methods)[number]["value"]>(
-    "efectivo"
+  const defaultPlan = plans.find(({ id }) => id === defaultPlanId);
+  const [method, setMethod] = useState<PaymentMethod>(initialMethod);
+  const [amount, setAmount] = useState(
+    initialAmount ??
+      (initialMethod === "efectivo"
+        ? "0.00"
+        : defaultPlan?.price.toFixed(2) ?? "0.00")
   );
+  const [reference, setReference] = useState(initialReference);
   const selectedPlan = plans.find((plan) => plan.id === planId);
   const selectedStudent = students.find((student) => student.id === studentId);
   const expirationDate = selectedPlan
     ? getMembershipExpirationDate(today, selectedPlan.kind)
     : today;
-  const actionLabel = selectedStudent?.hasMembership
-    ? "Confirmar renovación"
-    : "Realizar pago";
+  const amountValue = Number(amount) || 0;
+  const change = calculateChange(amountValue, selectedPlan?.price ?? 0);
+
+  function selectPlan(nextPlanId: string) {
+    setPlanId(nextPlanId);
+    const nextPlan = plans.find(({ id }) => id === nextPlanId);
+    if (method !== "efectivo" && nextPlan) {
+      setAmount(nextPlan.price.toFixed(2));
+    }
+  }
+
+  function selectMethod(nextMethod: PaymentMethod) {
+    setMethod(nextMethod);
+    setAmount(
+      nextMethod === "efectivo"
+        ? "0.00"
+        : selectedPlan?.price.toFixed(2) ?? "0.00"
+    );
+    if (nextMethod !== "transferencia") setReference("");
+  }
 
   return (
-    <form action={formAction} className="flex flex-1 flex-col">
+    <form
+      action="/membresias/revisar"
+      method="get"
+      className="flex flex-1 flex-col"
+    >
       <div>
         <Label htmlFor="studentId" className="text-base">
           Seleccionar alumno
@@ -102,7 +129,7 @@ export function PaymentForm({
           </span>
           <select
             id="studentId"
-            name="studentId"
+            name="student"
             required
             value={studentId}
             onChange={(event) => setStudentId(event.target.value)}
@@ -138,7 +165,7 @@ export function PaymentForm({
                 name="planId"
                 value={plan.id}
                 checked={planId === plan.id}
-                onChange={() => setPlanId(plan.id)}
+                onChange={() => selectPlan(plan.id)}
                 className="sr-only"
               />
               {planId === plan.id ? (
@@ -148,7 +175,7 @@ export function PaymentForm({
               ) : null}
               <span className="font-semibold">{plan.name}</span>
               <span className="mt-1 text-2xl">
-                {currencyFormatter.format(plan.price)}
+                {formatCurrency(plan.price)}
               </span>
             </label>
           ))}
@@ -180,19 +207,40 @@ export function PaymentForm({
         </div>
       </div>
 
-      <div className="mt-6">
-        <Label htmlFor="amount" className="text-base">
-          Monto pagado
-        </Label>
-        <input name="amount" type="hidden" value={selectedPlan?.price ?? ""} />
-        <Input
-          id="amount"
-          type="text"
-          required
-          value={selectedPlan ? currencyFormatter.format(selectedPlan.price) : ""}
-          readOnly
-          className="mt-2 h-14 rounded-xl px-4 text-xl font-semibold"
-        />
+      <div className="mt-6 grid grid-cols-2 gap-3">
+        <div>
+          <Label htmlFor="amount" className="text-base">
+            Monto pagado
+          </Label>
+          <div className="relative mt-2">
+            <span className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-lg font-semibold">
+              $
+            </span>
+            <Input
+              id="amount"
+              name="amount"
+              type="number"
+              inputMode="decimal"
+              min={selectedPlan?.price ?? 0}
+              max="99999999.99"
+              step="0.01"
+              required
+              value={amount}
+              onChange={(event) => setAmount(event.target.value)}
+              className="h-14 rounded-xl pr-3 pl-8 text-lg font-semibold"
+            />
+          </div>
+        </div>
+        <div>
+          <p className="text-base font-medium">Cambio</p>
+          <output
+            htmlFor="amount"
+            aria-live="polite"
+            className="mt-2 flex h-14 items-center rounded-xl border border-input bg-secondary/45 px-4 text-lg font-semibold"
+          >
+            {formatCurrency(change)}
+          </output>
+        </div>
       </div>
 
       <fieldset className="mt-6">
@@ -211,7 +259,7 @@ export function PaymentForm({
                   name="method"
                   value={value}
                   checked={isSelected}
-                  onChange={() => setMethod(value)}
+                  onChange={() => selectMethod(value)}
                   className="sr-only"
                 />
                 {isSelected ? (
@@ -227,19 +275,30 @@ export function PaymentForm({
         </div>
       </fieldset>
 
-      <p
-        aria-live="polite"
-        className="mt-4 min-h-5 text-sm font-medium text-destructive"
-      >
-        {state.error}
-      </p>
+      {method === "transferencia" ? (
+        <div className="mt-4">
+          <Label htmlFor="reference" className="text-base">
+            Referencia{" "}
+            <span className="font-normal text-muted-foreground">(opcional)</span>
+          </Label>
+          <Input
+            id="reference"
+            name="reference"
+            maxLength={100}
+            value={reference}
+            onChange={(event) => setReference(event.target.value)}
+            placeholder="Ej. 1234567890"
+            className="mt-2 h-14 rounded-xl px-4 text-base"
+          />
+        </div>
+      ) : null}
 
       <Button
         type="submit"
-        disabled={pending || !students.length || !plans.length}
+        disabled={!students.length || !plans.length}
         className="mt-auto min-h-14 rounded-xl text-base"
       >
-        {pending ? "Registrando..." : actionLabel}
+        Revisar pago
       </Button>
     </form>
   );
