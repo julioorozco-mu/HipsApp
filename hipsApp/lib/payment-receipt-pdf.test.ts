@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { PDFDocument } from "pdf-lib";
+
 import { createPaymentReceiptPdf } from "./payment-receipt-pdf.ts";
 
 test("genera un comprobante PDF válido", async () => {
@@ -19,4 +21,8 @@ test("genera un comprobante PDF válido", async () => {
 
   assert.equal(Buffer.from(pdf.subarray(0, 5)).toString(), "%PDF-");
   assert.ok(pdf.byteLength > 1_000);
+
+  const document = await PDFDocument.load(pdf);
+  const [page] = document.getPages();
+  assert.deepEqual(page.getSize(), { height: 595, width: 420 });
 });

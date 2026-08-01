@@ -1,4 +1,10 @@
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import {
+  type PDFFont,
+  PDFDocument,
+  type PDFPage,
+  StandardFonts,
+  rgb,
+} from "pdf-lib";
 
 import { formatIsoDate } from "./date.ts";
 import {
@@ -20,121 +26,337 @@ export type PaymentReceipt = {
   total: number;
 };
 
+const PAGE_WIDTH = 420;
+const PAGE_HEIGHT = 595;
+const CONTENT_X = 24;
+const CONTENT_WIDTH = PAGE_WIDTH - CONTENT_X * 2;
+
+const colors = {
+  background: rgb(0.98, 0.97, 0.99),
+  border: rgb(0.88, 0.86, 0.91),
+  dark: rgb(0.08, 0.06, 0.13),
+  green: rgb(0.02, 0.58, 0.29),
+  greenLight: rgb(0.91, 0.98, 0.91),
+  lavender: rgb(0.95, 0.92, 1),
+  muted: rgb(0.42, 0.4, 0.47),
+  purple: rgb(0.45, 0.16, 0.87),
+  white: rgb(1, 1, 1),
+};
+
+function fitTextSize(
+  font: PDFFont,
+  text: string,
+  maxWidth: number,
+  preferredSize: number,
+  minimumSize: number
+) {
+  let size = preferredSize;
+  while (size > minimumSize && font.widthOfTextAtSize(text, size) > maxWidth) {
+    size -= 0.5;
+  }
+  return size;
+}
+
+function drawRightAlignedText({
+  font,
+  page,
+  right,
+  size,
+  text,
+  y,
+}: {
+  font: PDFFont;
+  page: PDFPage;
+  right: number;
+  size: number;
+  text: string;
+  y: number;
+}) {
+  page.drawText(text, {
+    x: right - font.widthOfTextAtSize(text, size),
+    y,
+    size,
+    font,
+    color: colors.dark,
+  });
+}
+
+function drawCard(page: PDFPage, y: number, height: number, color = colors.white) {
+  page.drawRectangle({
+    x: CONTENT_X,
+    y,
+    width: CONTENT_WIDTH,
+    height,
+    color,
+    borderColor: colors.border,
+    borderWidth: 0.75,
+  });
+}
+
 export async function createPaymentReceiptPdf(receipt: PaymentReceipt) {
   const document = await PDFDocument.create();
   document.setTitle(`Comprobante ${receipt.folio}`);
   document.setAuthor("HipsApp");
   document.setSubject("Comprobante de pago");
 
-  const page = document.addPage([595.28, 841.89]);
+  const page = document.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
   const regular = await document.embedFont(StandardFonts.Helvetica);
   const bold = await document.embedFont(StandardFonts.HelveticaBold);
-  const purple = rgb(0.45, 0.16, 0.87);
-  const dark = rgb(0.08, 0.06, 0.13);
-  const muted = rgb(0.42, 0.4, 0.47);
-  const green = rgb(0.04, 0.58, 0.28);
 
-  page.drawRectangle({ x: 0, y: 809, width: 595.28, height: 32.89, color: purple });
-  page.drawText("HipsApp", { x: 48, y: 755, size: 28, font: bold, color: purple });
-  page.drawText("COMPROBANTE DE PAGO", {
-    x: 48,
-    y: 722,
-    size: 12,
+  page.drawRectangle({
+    x: 0,
+    y: 0,
+    width: PAGE_WIDTH,
+    height: PAGE_HEIGHT,
+    color: colors.background,
+  });
+  page.drawRectangle({
+    x: 0,
+    y: 467,
+    width: PAGE_WIDTH,
+    height: 128,
+    color: colors.purple,
+  });
+  page.drawCircle({
+    x: 388,
+    y: 580,
+    size: 58,
+    color: colors.white,
+    opacity: 0.08,
+  });
+  page.drawCircle({
+    x: 350,
+    y: 548,
+    size: 38,
+    color: rgb(0.61, 0.86, 0.15),
+    opacity: 0.16,
+  });
+
+  page.drawText("HipsApp", {
+    x: CONTENT_X,
+    y: 548,
+    size: 25,
     font: bold,
-    color: muted,
+    color: colors.white,
+  });
+  page.drawText("COMPROBANTE DE PAGO", {
+    x: CONTENT_X,
+    y: 527,
+    size: 8.5,
+    font: bold,
+    color: colors.lavender,
+  });
+
+  page.drawRectangle({
+    x: 267,
+    y: 542,
+    width: 129,
+    height: 27,
+    color: colors.greenLight,
+  });
+  page.drawCircle({ x: 281, y: 555.5, size: 4, color: colors.green });
+  page.drawText("PAGO CONFIRMADO", {
+    x: 292,
+    y: 551.5,
+    size: 7.5,
+    font: bold,
+    color: colors.green,
+  });
+
+  page.drawText("FOLIO", {
+    x: CONTENT_X,
+    y: 491,
+    size: 7.5,
+    font: bold,
+    color: colors.lavender,
   });
   page.drawText(receipt.folio, {
-    x: 547 - bold.widthOfTextAtSize(receipt.folio, 12),
-    y: 722,
+    x: CONTENT_X,
+    y: 476,
     size: 12,
     font: bold,
-    color: dark,
+    color: colors.white,
   });
 
+  drawCard(page, 350, 96);
+  page.drawText("ALUMNO", {
+    x: 40,
+    y: 425,
+    size: 7.5,
+    font: bold,
+    color: colors.purple,
+  });
+  const studentSize = fitTextSize(bold, receipt.studentName, 340, 15, 10);
+  page.drawText(receipt.studentName, {
+    x: 40,
+    y: 404,
+    size: studentSize,
+    font: bold,
+    color: colors.dark,
+  });
+  page.drawText(receipt.planName, {
+    x: 40,
+    y: 377,
+    size: 10,
+    font: bold,
+    color: colors.dark,
+  });
+  drawRightAlignedText({
+    font: regular,
+    page,
+    right: 380,
+    size: 9,
+    text: `${formatIsoDate(receipt.startDate)} - ${formatIsoDate(receipt.endDate)}`,
+    y: 377,
+  });
+
+  drawCard(page, 215, 116, colors.lavender);
+  page.drawText("TOTAL", {
+    x: 40,
+    y: 307,
+    size: 8,
+    font: bold,
+    color: colors.purple,
+  });
+  page.drawText(formatCurrency(receipt.total), {
+    x: 40,
+    y: 276,
+    size: 27,
+    font: bold,
+    color: colors.dark,
+  });
   page.drawLine({
-    start: { x: 48, y: 700 },
-    end: { x: 547, y: 700 },
-    thickness: 1,
-    color: rgb(0.88, 0.86, 0.91),
+    start: { x: 40, y: 260 },
+    end: { x: 380, y: 260 },
+    thickness: 0.75,
+    color: rgb(0.82, 0.76, 0.9),
+  });
+  page.drawText("MONTO PAGADO", {
+    x: 40,
+    y: 242,
+    size: 7.5,
+    font: bold,
+    color: colors.muted,
+  });
+  page.drawText(formatCurrency(receipt.amountReceived), {
+    x: 40,
+    y: 226,
+    size: 11,
+    font: bold,
+    color: colors.dark,
+  });
+  page.drawText("CAMBIO", {
+    x: 230,
+    y: 242,
+    size: 7.5,
+    font: bold,
+    color: colors.muted,
+  });
+  drawRightAlignedText({
+    font: bold,
+    page,
+    right: 380,
+    size: 11,
+    text: formatCurrency(receipt.change),
+    y: 226,
   });
 
-  const rows: Array<[string, string]> = [
-    ["Alumno", receipt.studentName],
-    ["Plan", receipt.planName],
-    [
-      "Periodo",
-      `${formatIsoDate(receipt.startDate)} - ${formatIsoDate(receipt.endDate)}`,
-    ],
-    ["Método de pago", PAYMENT_METHOD_LABEL[receipt.method]],
-  ];
+  drawCard(page, 140, 58);
+  page.drawText("MÉTODO DE PAGO", {
+    x: 40,
+    y: 178,
+    size: 7.5,
+    font: bold,
+    color: colors.muted,
+  });
+  page.drawText(PAYMENT_METHOD_LABEL[receipt.method], {
+    x: 40,
+    y: 158,
+    size: 11,
+    font: bold,
+    color: colors.dark,
+  });
   if (receipt.method === "transferencia" && receipt.reference) {
-    rows.push(["Referencia", receipt.reference]);
-  }
-
-  let y = 660;
-  for (const [label, value] of rows) {
-    page.drawText(label, { x: 48, y, size: 11, font: regular, color: muted });
-    const valueSize = value.length > 38 ? 9 : 11;
-    page.drawText(value, {
-      x: 547 - bold.widthOfTextAtSize(value, valueSize),
-      y,
-      size: valueSize,
+    page.drawText("REFERENCIA", {
+      x: 230,
+      y: 178,
+      size: 7.5,
       font: bold,
-      color: dark,
+      color: colors.muted,
     });
-    y -= 34;
-  }
-
-  page.drawLine({
-    start: { x: 48, y: y + 8 },
-    end: { x: 547, y: y + 8 },
-    thickness: 1,
-    color: rgb(0.88, 0.86, 0.91),
-  });
-
-  const totals: Array<[string, string, boolean]> = [
-    ["Total", formatCurrency(receipt.total), true],
-    ["Monto pagado", formatCurrency(receipt.amountReceived), false],
-    ["Cambio", formatCurrency(receipt.change), false],
-  ];
-  y -= 28;
-  for (const [label, value, emphasized] of totals) {
-    const font = emphasized ? bold : regular;
-    const size = emphasized ? 16 : 12;
-    page.drawText(label, { x: 48, y, size, font, color: dark });
-    page.drawText(value, {
-      x: 547 - bold.widthOfTextAtSize(value, size),
-      y,
-      size,
+    drawRightAlignedText({
       font: bold,
-      color: dark,
+      page,
+      right: 380,
+      size: fitTextSize(bold, receipt.reference, 150, 11, 8),
+      text: receipt.reference,
+      y: 158,
     });
-    y -= 38;
   }
 
   page.drawRectangle({
-    x: 48,
-    y: y - 4,
-    width: 499,
-    height: 48,
-    color: rgb(0.91, 0.98, 0.9),
-    borderColor: rgb(0.72, 0.91, 0.61),
-    borderWidth: 1,
+    x: CONTENT_X,
+    y: 76,
+    width: CONTENT_WIDTH,
+    height: 47,
+    color: colors.greenLight,
+    borderColor: rgb(0.69, 0.9, 0.69),
+    borderWidth: 0.75,
   });
-  page.drawText("Pago confirmado - Membresía activa", {
-    x: 64,
-    y: y + 13,
-    size: 12,
+  page.drawRectangle({
+    x: CONTENT_X,
+    y: 76,
+    width: 5,
+    height: 47,
+    color: colors.green,
+  });
+  page.drawCircle({
+    x: 52,
+    y: 99.5,
+    size: 10,
+    color: colors.green,
+  });
+  page.drawLine({
+    start: { x: 47.5, y: 99.5 },
+    end: { x: 51, y: 96 },
+    thickness: 1.5,
+    color: colors.white,
+  });
+  page.drawLine({
+    start: { x: 51, y: 96 },
+    end: { x: 57.5, y: 103.5 },
+    thickness: 1.5,
+    color: colors.white,
+  });
+  page.drawText("ESTATUS", {
+    x: 72,
+    y: 104,
+    size: 7,
     font: bold,
-    color: green,
+    color: colors.green,
+  });
+  page.drawText("Membresía activa", {
+    x: 72,
+    y: 87,
+    size: 11,
+    font: bold,
+    color: colors.dark,
   });
 
   page.drawText("Comprobante generado por HipsApp", {
-    x: 48,
-    y: 52,
-    size: 9,
+    x: CONTENT_X,
+    y: 36,
+    size: 8,
     font: regular,
-    color: muted,
+    color: colors.muted,
+  });
+  drawRightAlignedText({
+    font: regular,
+    page,
+    right: PAGE_WIDTH - CONTENT_X,
+    size: 8,
+    text: receipt.folio,
+    y: 36,
   });
 
   return document.save();
