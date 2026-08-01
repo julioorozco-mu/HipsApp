@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 
@@ -10,11 +11,31 @@ export type StudentFormState = {
 
 const PHONE_LOCAL_MX = /^\d{10}$/;
 
+function isValidIsoDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
 type ParsedStudentForm =
   | { error: string; data?: undefined }
   | {
       error: null;
       data: { nombre: string; telefono: string; objetivo_peso_grasa: number | null };
+    };
+
+type ParsedNewStudentForm =
+  | { error: string; data?: undefined; realizarPago?: undefined }
+  | {
+      error: null;
+      data: {
+        nombre: string;
+        telefono: string;
+        objetivo_peso_grasa: number | null;
+        cumpleanos: string;
+        fecha_registro: string;
+      };
+      realizarPago: boolean;
     };
 
 function parseStudentForm(formData: FormData): ParsedStudentForm {
@@ -29,21 +50,67 @@ function parseStudentForm(formData: FormData): ParsedStudentForm {
     return { error: "El nombre es obligatorio." };
   }
 
+  if (nombre.length > 120) {
+    return { error: "El nombre no puede exceder 120 caracteres." };
+  }
+
   if (!PHONE_LOCAL_MX.test(telefonoLocal)) {
     return {
-      error: "Telefono invalido. Ingresa los 10 digitos, ej. 9991234567.",
+      error: "Teléfono inválido. Ingresa los 10 dígitos, ej. 9991234567.",
     };
   }
 
   const objetivo_peso_grasa = objetivoRaw ? Number(objetivoRaw) : null;
 
-  if (objetivoRaw && (Number.isNaN(objetivo_peso_grasa) || objetivo_peso_grasa! < 0)) {
-    return { error: "El objetivo de peso/grasa debe ser un numero valido." };
+  if (
+    objetivoRaw &&
+    (Number.isNaN(objetivo_peso_grasa) ||
+      objetivo_peso_grasa! < 1 ||
+      objetivo_peso_grasa! > 500)
+  ) {
+    return { error: "El peso ideal debe estar entre 1 y 500 kg." };
   }
 
   return {
     error: null,
     data: { nombre, telefono: `+52${telefonoLocal}`, objetivo_peso_grasa },
+  };
+}
+
+function parseNewStudentForm(formData: FormData): ParsedNewStudentForm {
+  const parsed = parseStudentForm(formData);
+  if (!parsed.data) return parsed;
+
+  const cumpleanos = String(formData.get("cumpleanos") ?? "").trim();
+  const fechaIngreso = String(formData.get("fecha_ingreso") ?? "").trim();
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Mexico_City",
+  }).format(new Date());
+
+  if (!isValidIsoDate(cumpleanos)) {
+    return { error: "Selecciona la fecha de cumpleaños." };
+  }
+
+  if (cumpleanos > today) {
+    return { error: "El cumpleaños no puede estar en el futuro." };
+  }
+
+  if (!isValidIsoDate(fechaIngreso)) {
+    return { error: "Selecciona la fecha de ingreso." };
+  }
+
+  if (fechaIngreso > today) {
+    return { error: "La fecha de ingreso no puede estar en el futuro." };
+  }
+
+  return {
+    error: null,
+    data: {
+      ...parsed.data,
+      cumpleanos,
+      fecha_registro: `${fechaIngreso}T12:00:00.000Z`,
+    },
+    realizarPago: formData.get("realizar_pago") === "on",
   };
 }
 
@@ -58,14 +125,19 @@ export async function addStudent(
     return { error: "Inicia sesión para registrar alumnos." };
   }
 
-  const parsed = parseStudentForm(formData);
+  const parsed = parseNewStudentForm(formData);
   if (!parsed.data) return { error: parsed.error };
 
-  const { error } = await supabase
+  const { data: student, error } = await supabase
     .from("students")
-    .insert(parsed.data);
+    .insert(parsed.data)
+    .select("id")
+    .single();
 
   if (error) {
+    if (error.code === "23505") {
+      return { error: "Ya existe un alumno con ese WhatsApp." };
+    }
     return { error: `No se pudo registrar al alumno: ${error.message}` };
   }
 
@@ -73,7 +145,11 @@ export async function addStudent(
   revalidatePath("/alumnos");
   revalidatePath("/asistencia");
 
-  return { error: null };
+  redirect(
+    parsed.realizarPago
+      ? `/membresias/registrar?student=${student.id}`
+      : `/alumnos/nuevo?creado=${student.id}`
+  );
 }
 
 export async function updateStudent(

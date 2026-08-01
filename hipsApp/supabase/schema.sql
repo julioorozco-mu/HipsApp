@@ -92,6 +92,7 @@ create table public.students (
   nombre text not null check (length(trim(nombre)) > 0),
   telefono text not null unique
     check (telefono ~ '^\+[1-9][0-9]{7,14}$'),
+  cumpleanos date,
   objetivo_peso_grasa numeric(5,2)
     check (objetivo_peso_grasa is null or objetivo_peso_grasa >= 0),
   current_streak integer not null default 0 check (current_streak >= 0),
@@ -273,7 +274,8 @@ select
     when membership.fecha_vencimiento <= local.today + 3 then 'por_vencer'
     else 'activa'
   end as membership_status,
-  coalesce(stats.attendance_count, 0)::bigint as attendance_count
+  coalesce(stats.attendance_count, 0)::bigint as attendance_count,
+  s.cumpleanos
 from public.students s
 cross join lateral (
   select (now() at time zone settings.timezone)::date as today

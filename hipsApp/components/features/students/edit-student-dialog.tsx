@@ -87,7 +87,7 @@ export function EditStudentDialog({
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor={`objetivo-${student.id}`}>
-              Objetivo (peso/grasa, opcional)
+              Peso ideal (opcional)
             </Label>
             <Input
               id={`objetivo-${student.id}`}
@@ -95,7 +95,8 @@ export function EditStudentDialog({
               type="number"
               inputMode="decimal"
               step="0.1"
-              min="0"
+              min="1"
+              max="500"
               defaultValue={student.objetivo_peso_grasa ?? ""}
               className="h-12 text-base"
             />

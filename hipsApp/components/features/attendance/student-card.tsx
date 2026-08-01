@@ -155,7 +155,7 @@ export function StudentCard({
         {student.objetivo_peso_grasa != null && (
           <Badge variant="outline" className="w-fit gap-1 font-sans">
             <Target className="size-3" />
-            Objetivo: {student.objetivo_peso_grasa} kg
+            Peso ideal: {student.objetivo_peso_grasa} kg
           </Badge>
         )}
       </CardHeader>

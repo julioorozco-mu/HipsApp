@@ -614,6 +614,7 @@ export type Database = {
       students: {
         Row: {
           active: boolean
+          cumpleanos: string | null
           current_streak: number
           fecha_registro: string
           highest_streak: number
@@ -624,6 +625,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          cumpleanos?: string | null
           current_streak?: number
           fecha_registro?: string
           highest_streak?: number
@@ -634,6 +636,7 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          cumpleanos?: string | null
           current_streak?: number
           fecha_registro?: string
           highest_streak?: number
@@ -681,6 +684,7 @@ export type Database = {
         Row: {
           active: boolean | null
           attendance_count: number | null
+          cumpleanos: string | null
           current_streak: number | null
           fecha_registro: string | null
           fecha_vencimiento: string | null
