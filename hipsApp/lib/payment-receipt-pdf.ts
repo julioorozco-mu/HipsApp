@@ -194,20 +194,47 @@ export async function createPaymentReceiptPdf(receipt: PaymentReceipt) {
     font: bold,
     color: colors.dark,
   });
+  page.drawText("PLAN", {
+    x: 40,
+    y: 379,
+    size: 6.5,
+    font: bold,
+    color: colors.muted,
+  });
   page.drawText(receipt.planName, {
     x: 40,
-    y: 377,
-    size: 10,
+    y: 361,
+    size: 9,
     font: bold,
     color: colors.dark,
   });
-  drawRightAlignedText({
+  page.drawText("FECHA DE INICIO", {
+    x: 175,
+    y: 379,
+    size: 6.5,
+    font: bold,
+    color: colors.muted,
+  });
+  page.drawText(formatIsoDate(receipt.startDate), {
+    x: 175,
+    y: 361,
+    size: 8.5,
     font: regular,
-    page,
-    right: 380,
-    size: 9,
-    text: `${formatIsoDate(receipt.startDate)} - ${formatIsoDate(receipt.endDate)}`,
-    y: 377,
+    color: colors.dark,
+  });
+  page.drawText("FECHA DE VENCIMIENTO", {
+    x: 278,
+    y: 379,
+    size: 6.5,
+    font: bold,
+    color: colors.muted,
+  });
+  page.drawText(formatIsoDate(receipt.endDate), {
+    x: 278,
+    y: 361,
+    size: 8.5,
+    font: regular,
+    color: colors.dark,
   });
 
   drawCard(page, 215, 116, colors.lavender);
@@ -246,7 +273,7 @@ export async function createPaymentReceiptPdf(receipt: PaymentReceipt) {
     color: colors.dark,
   });
   page.drawText("CAMBIO", {
-    x: 230,
+    x: 380 - bold.widthOfTextAtSize("CAMBIO", 7.5),
     y: 242,
     size: 7.5,
     font: bold,
