@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { Mail, Scale, UserRoundPlus } from "lucide-react";
+import { CalendarDays, Mail, Scale, UserRoundPlus } from "lucide-react";
 import Link from "next/link";
 
 import { addStudent, type StudentFormState } from "@/app/actions/students";
@@ -78,15 +78,23 @@ export function NewStudentForm({ today }: { today: string }) {
           </div>
         </div>
 
-        <DateSelect
-          id="fecha_ingreso"
-          name="fecha_ingreso"
-          label="Fecha de ingreso"
-          minYear={currentYear - 50}
-          maxDate={today}
-          defaultValue={today}
-          required
-        />
+        <div className="space-y-1.5">
+          <Label htmlFor="fecha_ingreso" className="text-sm font-semibold">
+            Fecha de ingreso
+          </Label>
+          <div className="relative">
+            <CalendarDays className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              id="fecha_ingreso"
+              name="fecha_ingreso"
+              type="date"
+              required
+              max={today}
+              defaultValue={today}
+              className="h-12 rounded-xl pl-10 text-base"
+            />
+          </div>
+        </div>
 
         <DateSelect
           id="cumpleanos"
