@@ -65,6 +65,7 @@ export async function GET(
     endDate: membership.fecha_vencimiento,
     folio,
     method: payment.method,
+    paidAt: payment.paid_at,
     planName: plan.name,
     reference: payment.reference,
     startDate: membership.fecha_inicio,
