@@ -35,7 +35,6 @@ type ParsedNewStudentForm =
         correo: string;
         objetivo_peso_grasa: number | null;
         cumpleanos: string;
-        fecha_registro: string;
       };
       realizarPago: boolean;
     };
@@ -84,7 +83,6 @@ function parseNewStudentForm(formData: FormData): ParsedNewStudentForm {
   if (!parsed.data) return parsed;
 
   const cumpleanos = String(formData.get("cumpleanos") ?? "").trim();
-  const fechaIngreso = String(formData.get("fecha_ingreso") ?? "").trim();
   const correo = String(formData.get("correo") ?? "").trim().toLowerCase();
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Mexico_City",
@@ -102,21 +100,12 @@ function parseNewStudentForm(formData: FormData): ParsedNewStudentForm {
     return { error: "El cumpleaños no puede estar en el futuro." };
   }
 
-  if (!isValidIsoDate(fechaIngreso)) {
-    return { error: "Selecciona la fecha de ingreso." };
-  }
-
-  if (fechaIngreso > today) {
-    return { error: "La fecha de ingreso no puede estar en el futuro." };
-  }
-
   return {
     error: null,
     data: {
       ...parsed.data,
       correo,
       cumpleanos,
-      fecha_registro: `${fechaIngreso}T12:00:00.000Z`,
     },
     realizarPago: formData.get("realizar_pago") === "on",
   };

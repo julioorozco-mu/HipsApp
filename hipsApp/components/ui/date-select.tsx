@@ -52,20 +52,15 @@ export function DateSelect({
   );
   const dayLimit = getDayLimit(year, month);
   const value = year && month && day ? `${year}-${pad(month)}-${pad(day)}` : "";
-  const instructionId = `${id}-instruction`;
   const selectClassName =
-    "min-h-12 w-full appearance-none rounded-xl border border-input bg-card px-3 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
+    "min-h-12 w-full appearance-none rounded-xl border border-input bg-card px-3 text-center text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
 
   return (
     <fieldset>
       <legend className="text-sm font-semibold">{label}</legend>
-      <p id={instructionId} className="mt-1 text-xs text-muted-foreground">
-        Día → mes → año
-      </p>
       <input id={id} name={name} type="hidden" value={value} />
       <div className="mt-2 grid grid-cols-[0.8fr_1.35fr_1fr] gap-2">
         <select
-          aria-describedby={instructionId}
           aria-label={`Día de ${label.toLowerCase()}`}
           required={required}
           value={day}
@@ -83,7 +78,6 @@ export function DateSelect({
         </select>
 
         <select
-          aria-describedby={instructionId}
           aria-label={`Mes de ${label.toLowerCase()}`}
           required={required}
           value={month}
@@ -103,7 +97,6 @@ export function DateSelect({
         </select>
 
         <select
-          aria-describedby={instructionId}
           aria-label={`Año de ${label.toLowerCase()}`}
           required={required}
           value={year}

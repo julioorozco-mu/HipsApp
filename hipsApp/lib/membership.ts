@@ -1,6 +1,25 @@
 export type MembershipStatus = "activa" | "por_vencer" | "vencida" | "sin_registro";
+export type MembershipPlanKind = "mensual" | "clase_suelta";
 
 const POR_VENCER_THRESHOLD_DAYS = 3;
+
+export function getMembershipExpirationDate(
+  startDate: string,
+  kind: MembershipPlanKind
+) {
+  if (kind === "clase_suelta") return startDate;
+
+  const [year, month, day] = startDate.split("-").map(Number);
+  const targetMonthIndex = month;
+  const targetYear = year + Math.floor(targetMonthIndex / 12);
+  const targetMonth = targetMonthIndex % 12;
+  const lastDay = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+  const expiration = new Date(
+    Date.UTC(targetYear, targetMonth, Math.min(day, lastDay))
+  );
+
+  return expiration.toISOString().slice(0, 10);
+}
 
 export function getMembershipStatus(
   fechaVencimiento: string | null | undefined

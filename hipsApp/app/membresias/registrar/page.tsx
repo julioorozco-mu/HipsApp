@@ -6,6 +6,10 @@ import { AppNav } from "@/components/app-nav";
 import { PaymentForm } from "@/components/features/memberships/payment-form";
 import { createClient } from "@/lib/supabase/server";
 
+const todayFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Mexico_City",
+});
+
 export default async function RegisterPaymentPage(
   props: {
     searchParams: Promise<{ student?: string | string[] }>;
@@ -21,7 +25,11 @@ export default async function RegisterPaymentPage(
   if (!user) redirect("/acceso");
 
   const [studentsResult, plansResult] = await Promise.all([
-    supabase.from("students").select("id, nombre").eq("active", true).order("nombre"),
+    supabase
+      .from("student_overview")
+      .select("id, nombre, membership_id")
+      .eq("active", true)
+      .order("nombre"),
     supabase
       .from("membership_plans")
       .select("id, name, kind, price")
@@ -69,7 +77,18 @@ export default async function RegisterPaymentPage(
                 ...plan,
                 price: Number(plan.price),
               }))}
-              students={studentsResult.data}
+              students={studentsResult.data.flatMap((student) =>
+                student.id && student.nombre
+                  ? [
+                      {
+                        id: student.id,
+                        nombre: student.nombre,
+                        hasMembership: Boolean(student.membership_id),
+                      },
+                    ]
+                  : []
+              )}
+              today={todayFormatter.format(new Date())}
             />
           </div>
         </div>
