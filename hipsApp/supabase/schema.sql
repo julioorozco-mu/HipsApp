@@ -92,6 +92,7 @@ create table public.students (
   nombre text not null check (length(trim(nombre)) > 0),
   telefono text not null unique
     check (telefono ~ '^\+[1-9][0-9]{7,14}$'),
+  correo text,
   cumpleanos date,
   objetivo_peso_grasa numeric(5,2)
     check (objetivo_peso_grasa is null or objetivo_peso_grasa >= 0),
@@ -275,7 +276,8 @@ select
     else 'activa'
   end as membership_status,
   coalesce(stats.attendance_count, 0)::bigint as attendance_count,
-  s.cumpleanos
+  s.cumpleanos,
+  s.correo
 from public.students s
 cross join lateral (
   select (now() at time zone settings.timezone)::date as today

@@ -73,6 +73,10 @@ export default async function StudentProfilePage(
 
   const membershipStatus =
     (student.membership_status as MembershipStatus | null) ?? "sin_registro";
+  const membershipActionLabel =
+    membershipStatus === "sin_registro"
+      ? "Pagar membresía"
+      : "Renovar membresía";
   const monthlyStats = getMonthlyAttendanceStats(attendanceResult.data);
   const paymentDate = student.fecha_vencimiento
     ? dateFormatter.format(new Date(`${student.fecha_vencimiento}T00:00:00`))
@@ -126,14 +130,16 @@ export default async function StudentProfilePage(
             aria-label="Resumen del alumno"
           >
             <Card className="min-h-28 items-center justify-center gap-1 rounded-2xl px-1 py-3 text-center">
-              <strong className="text-3xl leading-none">{monthlyStats.total}</strong>
-              <span className="text-xs text-muted-foreground">
+              <strong className="flex h-8 items-center text-3xl leading-none">
+                {monthlyStats.total}
+              </strong>
+              <span className="min-h-8 text-xs text-muted-foreground">
                 asistencias
                 <span className="block">este mes</span>
               </span>
             </Card>
             <Card className="min-h-28 items-center justify-center gap-1 rounded-2xl px-1 py-3 text-center">
-              <strong className="flex items-center gap-1 text-3xl leading-none">
+              <strong className="flex h-8 items-center gap-1 text-3xl leading-none">
                 {student.current_streak ?? 0}
                 <Flame
                   className="size-6 text-primary"
@@ -141,13 +147,15 @@ export default async function StudentProfilePage(
                   aria-hidden="true"
                 />
               </strong>
-              <span className="text-xs text-muted-foreground">racha total</span>
+              <span className="min-h-8 text-xs text-muted-foreground">
+                racha total
+              </span>
             </Card>
             <Card className="min-h-28 items-center justify-center gap-1 rounded-2xl px-1 py-3 text-center">
-              <strong className="text-3xl leading-none">
+              <strong className="flex h-8 items-center text-3xl leading-none">
                 {monthlyStats.bestStreak}
               </strong>
-              <span className="text-xs text-muted-foreground">
+              <span className="min-h-8 text-xs text-muted-foreground">
                 mejor racha
                 <span className="block">este mes</span>
               </span>
@@ -169,7 +177,7 @@ export default async function StudentProfilePage(
               href={`/membresias/registrar?student=${student.id}`}
               className="flex min-h-14 items-center justify-center rounded-xl bg-primary px-5 text-base font-semibold text-primary-foreground transition-colors hover:bg-primary/85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary active:bg-primary/75"
             >
-              Renovar membresía
+              {membershipActionLabel}
             </Link>
             <a
               href={whatsappUrl}

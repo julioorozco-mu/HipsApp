@@ -1,11 +1,12 @@
 "use client";
 
 import { useActionState } from "react";
-import { CalendarDays, Scale, UserRoundPlus } from "lucide-react";
+import { Mail, Scale, UserRoundPlus } from "lucide-react";
 import Link from "next/link";
 
 import { addStudent, type StudentFormState } from "@/app/actions/students";
 import { Button } from "@/components/ui/button";
+import { DateSelect } from "@/components/ui/date-select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -13,6 +14,7 @@ const initialState: StudentFormState = { error: null };
 
 export function NewStudentForm({ today }: { today: string }) {
   const [state, formAction, pending] = useActionState(addStudent, initialState);
+  const currentYear = Number(today.slice(0, 4));
 
   return (
     <form action={formAction} className="flex flex-1 flex-col">
@@ -57,46 +59,48 @@ export function NewStudentForm({ today }: { today: string }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="fecha_ingreso" className="text-sm font-semibold">
-              Fecha de ingreso
-            </Label>
-            <div className="relative">
-              <CalendarDays className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id="fecha_ingreso"
-                name="fecha_ingreso"
-                type="date"
-                required
-                max={today}
-                defaultValue={today}
-                className="h-12 rounded-xl pl-10 text-sm"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="cumpleanos" className="text-sm font-semibold">
-              Cumpleaños
-            </Label>
-            <div className="relative">
-              <CalendarDays className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id="cumpleanos"
-                name="cumpleanos"
-                type="date"
-                required
-                max={today}
-                className="h-12 rounded-xl pl-10 text-sm"
-              />
-            </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="correo" className="text-sm font-semibold">
+            Correo
+          </Label>
+          <div className="relative">
+            <Mail className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              id="correo"
+              name="correo"
+              type="email"
+              required
+              maxLength={254}
+              autoComplete="email"
+              placeholder="nombre@correo.com"
+              className="h-12 rounded-xl pl-10 text-base"
+            />
           </div>
         </div>
 
+        <DateSelect
+          id="fecha_ingreso"
+          name="fecha_ingreso"
+          label="Fecha de ingreso"
+          minYear={currentYear - 50}
+          maxDate={today}
+          defaultValue={today}
+          required
+        />
+
+        <DateSelect
+          id="cumpleanos"
+          name="cumpleanos"
+          label="Cumpleaños"
+          minYear={currentYear - 120}
+          maxDate={today}
+          required
+        />
+
         <div className="space-y-1.5">
           <Label htmlFor="objetivo_peso_grasa" className="text-sm font-semibold">
-            Peso ideal <span className="font-normal text-muted-foreground">(opcional)</span>
+            Peso ideal{" "}
+            <span className="font-normal text-muted-foreground">(opcional)</span>
           </Label>
           <div className="relative">
             <Scale className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground" />
