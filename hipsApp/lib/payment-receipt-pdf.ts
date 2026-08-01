@@ -6,7 +6,7 @@ import {
   rgb,
 } from "pdf-lib";
 
-import { formatIsoDate } from "./date.ts";
+import { formatDateTime, formatIsoDate } from "./date.ts";
 import {
   formatCurrency,
   type PaymentMethod,
@@ -19,6 +19,7 @@ export type PaymentReceipt = {
   endDate: string;
   folio: string;
   method: PaymentMethod;
+  paidAt: string;
   planName: string;
   reference: string | null;
   startDate: string;
@@ -174,6 +175,20 @@ export async function createPaymentReceiptPdf(receipt: PaymentReceipt) {
     x: CONTENT_X,
     y: 476,
     size: 12,
+    font: bold,
+    color: colors.white,
+  });
+  page.drawText("FECHA Y HORA DE EMISIÓN", {
+    x: 245,
+    y: 491,
+    size: 7.5,
+    font: bold,
+    color: colors.lavender,
+  });
+  page.drawText(formatDateTime(receipt.paidAt), {
+    x: 245,
+    y: 476,
+    size: 9,
     font: bold,
     color: colors.white,
   });

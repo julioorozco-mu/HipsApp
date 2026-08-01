@@ -5,7 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import { AppNav } from "@/components/app-nav";
 import { PrintReceiptButton } from "@/components/features/memberships/print-receipt-button";
 import { Badge } from "@/components/ui/badge";
-import { formatIsoDate } from "@/lib/date";
+import { formatDateTime, formatIsoDate } from "@/lib/date";
 import {
   calculateChange,
   formatCurrency,
@@ -68,6 +68,7 @@ export default async function PaymentConfirmedPage({
   const whatsappText = [
     "HipsApp · Pago confirmado",
     `Folio: ${folio}`,
+    `Fecha y hora de emisión: ${formatDateTime(payment.paid_at)}`,
     `Alumno: ${student.nombre}`,
     `Plan: ${plan.name}`,
     `Periodo: ${formatIsoDate(membership.fecha_inicio)} – ${formatIsoDate(membership.fecha_vencimiento)}`,

@@ -12,6 +12,7 @@ test("genera un comprobante PDF válido", async () => {
     endDate: "2026-09-01",
     folio: "HP-2026-1B2D58AA",
     method: "transferencia",
+    paidAt: "2026-08-01T10:38:00Z",
     planName: "Mensual",
     reference: "123456789",
     startDate: "2026-08-01",
