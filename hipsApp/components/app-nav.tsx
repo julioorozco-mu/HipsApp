@@ -7,15 +7,31 @@ import {
   UsersRound,
 } from "lucide-react";
 
-const items = [
-  { label: "Inicio", href: "/", icon: House },
-  { label: "Alumnos", href: "/alumnos", icon: UsersRound },
-  { label: "Asistencia", href: "/asistencia", icon: ShieldCheck },
-  { label: "Mensajes", href: "/mensajes", icon: MessageSquareMore },
-  { label: "Más", href: "/mas", icon: Menu },
-] as const;
+import { normalizeRole } from "@/lib/roles";
+import { createClient } from "@/lib/supabase/server";
 
-export function AppNav({ active }: { active: (typeof items)[number]["href"] }) {
+export async function AppNav({ active }: { active: string }) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: profile } = user
+    ? await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle()
+    : { data: null };
+  const role = normalizeRole(profile?.role);
+  const peopleItem =
+    role === "superadmin"
+      ? { label: "Usuarios", href: "/usuarios", icon: UsersRound }
+      : { label: "Alumnos", href: "/alumnos", icon: UsersRound };
+  const items = [
+    { label: "Inicio", href: "/", icon: House },
+    peopleItem,
+    { label: "Asistencia", href: "/asistencia", icon: ShieldCheck },
+    { label: "Mensajes", href: "/mensajes", icon: MessageSquareMore },
+    { label: "Más", href: "/mas", icon: Menu },
+  ];
+
   return (
     <>
       <div
