@@ -5,6 +5,7 @@ import { MoreShell } from "@/components/features/more/more-shell";
 import { createClient } from "@/lib/supabase/server";
 
 const days = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+type ClassRow = { id: string; name: string; weekday: number; start_time: string; duration_minutes: number; capacity?: number };
 
 export default async function ClassesPage() {
   const supabase = await createClient();
@@ -12,7 +13,7 @@ export default async function ClassesPage() {
   if (!user) redirect("/acceso");
   const { data, error } = await supabase.from("classes").select("*").eq("active", true).order("start_time");
   if (error) throw new Error(error.message);
-  const classes = (data ?? []) as Array<(typeof data)[number] & { capacity?: number }>;
+  const classes = (data ?? []) as ClassRow[];
 
   return (
     <MoreShell title="Clases">
