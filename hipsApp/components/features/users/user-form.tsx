@@ -12,6 +12,10 @@ const initialState: CreateUserState = { error: null };
 const fieldClass =
   "min-h-12 w-full rounded-xl border border-border bg-card px-4 outline-none transition focus:border-primary focus:ring-3 focus:ring-ring/25";
 
+function keepTenDigits(value: string) {
+  return value.replace(/\D/g, "").slice(0, 10);
+}
+
 export function UserForm() {
   const [state, formAction, pending] = useActionState(
     createManagedUser,
@@ -80,18 +84,29 @@ export function UserForm() {
 
       {role === "alumno" ? (
         <label className="grid gap-2 text-sm font-semibold">
-          Teléfono
-          <input
-            className={fieldClass}
-            name="phone"
-            type="tel"
-            inputMode="tel"
-            autoComplete="tel"
-            placeholder="+529611234567"
-            required
-          />
+          Teléfono celular
+          <span className="flex overflow-hidden rounded-xl border border-border bg-card transition focus-within:border-primary focus-within:ring-3 focus-within:ring-ring/25">
+            <span className="flex min-h-12 items-center border-r border-border bg-secondary/60 px-4 text-base font-semibold text-muted-foreground">
+              +52
+            </span>
+            <input
+              className="min-h-12 min-w-0 flex-1 bg-transparent px-4 outline-none"
+              name="phone"
+              type="tel"
+              inputMode="numeric"
+              autoComplete="tel-national"
+              pattern="[0-9]{10}"
+              minLength={10}
+              maxLength={10}
+              placeholder="9611234567"
+              onInput={(event) => {
+                event.currentTarget.value = keepTenDigits(event.currentTarget.value);
+              }}
+              required
+            />
+          </span>
           <span className="text-xs font-normal text-muted-foreground">
-            Se usará para contacto y mensajes de WhatsApp.
+            Captura únicamente los 10 dígitos; el código de México se agrega automáticamente.
           </span>
         </label>
       ) : null}
