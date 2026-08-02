@@ -8,6 +8,25 @@ type SaveAttendanceResult = {
   error: string | null;
 };
 
+function attendanceError(message: string) {
+  if (message.includes("attendance not open yet")) {
+    return "La asistencia se habilita 15 minutos antes de iniciar la clase.";
+  }
+  if (message.includes("attendance window closed")) {
+    return "El horario de esta clase ya terminó y la asistencia está cerrada.";
+  }
+  if (message.includes("attendance already saved")) {
+    return "La asistencia de esta clase ya fue guardada. Continúa a Finalizar clase.";
+  }
+  if (message.includes("class session is closed")) {
+    return "Esta clase ya fue finalizada o cancelada.";
+  }
+  if (message.includes("invalid active student selection")) {
+    return "Uno de los alumnos seleccionados ya no está disponible para asistencia.";
+  }
+  return `No se pudo guardar la asistencia: ${message}`;
+}
+
 export async function saveAttendance(
   sessionId: string,
   presentStudentIds: string[]
@@ -34,11 +53,12 @@ export async function saveAttendance(
   });
 
   if (error) {
-    return { error: `No se pudo guardar la asistencia: ${error.message}` };
+    return { error: attendanceError(error.message) };
   }
 
   revalidatePath("/");
   revalidatePath("/asistencia");
+  revalidatePath("/asistencia/finalizar");
 
   return { error: null };
 }
