@@ -13,7 +13,7 @@ import { createClient } from "@/lib/supabase/server";
 export default async function UsersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ created?: string }>;
+  searchParams: Promise<{ created?: string; deleted?: string; updated?: string }>;
 }) {
   const supabase = await createClient();
   const {
@@ -55,6 +55,14 @@ export default async function UsersPage({
     role: normalizeRole(profile.role),
   }));
 
+  const successMessage = params.created === "1"
+    ? "Usuario creado correctamente."
+    : params.updated === "1"
+      ? "Usuario actualizado correctamente."
+      : params.deleted === "1"
+        ? "Usuario eliminado correctamente."
+        : null;
+
   return (
     <main className="min-h-dvh bg-[oklch(0.965_0.018_300)] p-2 sm:p-5">
       <div className="relative mx-auto flex min-h-[calc(100dvh-1rem)] w-full max-w-lg flex-col overflow-hidden rounded-[2.5rem] bg-card shadow-[0_18px_50px_oklch(0.25_0.04_300/0.14)] sm:min-h-[calc(100dvh-2.5rem)]">
@@ -73,9 +81,9 @@ export default async function UsersPage({
             </span>
           </header>
 
-          {params.created === "1" ? (
+          {successMessage ? (
             <p className="mt-4 rounded-xl bg-[oklch(0.93_0.08_145)] px-4 py-3 text-sm font-medium text-[oklch(0.38_0.12_145)]">
-              Usuario creado correctamente.
+              {successMessage}
             </p>
           ) : null}
 
