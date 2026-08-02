@@ -194,6 +194,24 @@ async function session() {
   };
 }
 
+async function selectedPlaylist(
+  supabase: SupabaseClient,
+  formData: FormData
+): Promise<{ error: string | null; id: string | null }> {
+  const id = value(formData, "playlist_id");
+  if (!id) return { error: null, id: null };
+
+  const { data, error } = await supabase
+    .from("playlists")
+    .select("id")
+    .eq("id", id)
+    .eq("active", true)
+    .maybeSingle();
+  if (error) return { error: error.message, id: null };
+  if (!data) return { error: "Selecciona una playlist activa.", id: null };
+  return { error: null, id: data.id };
+}
+
 export async function updateProfile(
   _state: MoreActionState,
   formData: FormData
@@ -259,7 +277,9 @@ export async function createClass(
   );
   const intervals = schedules(formData);
   const capacity = Number(value(formData, "capacity"));
+  const playlist = await selectedPlaylist(supabase, formData);
 
+  if (playlist.error) return { error: playlist.error };
   if (!name || !weekdays.length || !intervals.length) {
     return { error: "Completa nombre, días y al menos un intervalo válido." };
   }
@@ -283,6 +303,7 @@ export async function createClass(
       duration_minutes: minutes(end) - minutes(start),
       instructor_id: user.id,
       name,
+      playlist_id: playlist.id,
       start_time: start,
       weekday,
     }))
@@ -313,6 +334,9 @@ export async function updateClass(
   const weekday = Number(formData.get("weekday"));
   const [interval] = schedules(formData);
   const capacity = Number(value(formData, "capacity"));
+  const playlist = await selectedPlaylist(supabase, formData);
+
+  if (playlist.error) return { error: playlist.error };
   if (!name || !interval || weekday < 0 || weekday > 6) {
     return { error: "Completa nombre, día e intervalo." };
   }
@@ -330,6 +354,7 @@ export async function updateClass(
       capacity,
       duration_minutes: minutes(interval.end) - minutes(interval.start),
       name,
+      playlist_id: playlist.id,
       start_time: interval.start,
       weekday,
     } as never)
@@ -344,6 +369,7 @@ export async function updateClass(
 
   revalidatePath("/clases");
   revalidatePath("/asistencia");
+  revalidatePath("/asistencia/finalizar");
   redirect("/clases");
 }
 
