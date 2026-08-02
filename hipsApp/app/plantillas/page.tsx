@@ -5,6 +5,7 @@ import { MoreShell } from "@/components/features/more/more-shell";
 import { createClient } from "@/lib/supabase/server";
 
 const iconByKind = { recordatorio: BellRing, pago: CircleDollarSign, confirmacion: MessageSquareText, otro: MessageSquareText } as const;
+type TemplateRow = { id: string; name: string; body: string; active: boolean; kind?: keyof typeof iconByKind };
 
 export default async function TemplatesPage() {
   const supabase = await createClient();
@@ -12,7 +13,7 @@ export default async function TemplatesPage() {
   if (!user) redirect("/acceso");
   const { data, error } = await supabase.from("message_templates").select("*").order("created_at");
   if (error) throw new Error(error.message);
-  const templates = (data ?? []) as Array<(typeof data)[number] & { kind?: keyof typeof iconByKind }>;
+  const templates = (data ?? []) as TemplateRow[];
 
   return (
     <MoreShell title="Plantillas de mensajes">
