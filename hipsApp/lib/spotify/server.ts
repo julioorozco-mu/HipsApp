@@ -216,7 +216,8 @@ async function spotifyFetch<T>(
   }
 
   if (response.status === 204) return undefined as T;
-  return (await response.json()) as T;
+  const body = await response.text();
+  return body ? (JSON.parse(body) as T) : (undefined as T);
 }
 
 export async function saveSpotifyAuthorization(
@@ -419,7 +420,7 @@ export async function createSpotifyPlaylist(input: {
 }) {
   const client = await createSpotifyClient();
   const playlist = await client.request<SpotifyPlaylistObject>(
-    `/users/${encodeURIComponent(client.connection.spotify_user_id)}/playlists`,
+    "/me/playlists",
     {
       method: "POST",
       body: JSON.stringify({
