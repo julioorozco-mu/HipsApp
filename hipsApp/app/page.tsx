@@ -20,6 +20,10 @@ const classTimeFormatter = new Intl.DateTimeFormat("es-MX", {
   timeZone: "America/Mexico_City",
 });
 
+function greetingName(fullName: string | null | undefined) {
+  return fullName?.trim().split(/\s+/).slice(0, 2).join(" ") ?? "";
+}
+
 export default async function Home() {
   const supabase = await createClient();
   const {
@@ -61,6 +65,7 @@ export default async function Home() {
     : null;
   const peopleHref = isSuperadmin ? "/usuarios" : "/alumnos";
   const peopleLabel = isSuperadmin ? "usuarios" : "alumnos";
+  const displayName = greetingName(profile?.full_name);
 
   return (
     <main className="min-h-dvh bg-[oklch(0.965_0.018_300)] p-2 sm:p-5">
@@ -68,7 +73,7 @@ export default async function Home() {
         <div className="flex-1 px-5 pt-6 pb-7 sm:px-8 sm:pt-12">
           <header className="flex items-center justify-between gap-3">
             <h1 className="min-w-0 text-[clamp(1.7rem,8vw,2.25rem)] leading-tight font-bold tracking-[-0.04em]">
-              Hola{profile?.full_name ? `, ${profile.full_name}` : ""}{" "}
+              Hola{displayName ? `, ${displayName}` : ""}{" "}
               <span aria-hidden="true">👋</span>
             </h1>
             <button
