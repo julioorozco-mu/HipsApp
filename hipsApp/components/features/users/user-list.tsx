@@ -1,7 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
-import { GraduationCap, Search, ShieldCheck, ShieldEllipsis } from "lucide-react";
+import {
+  ChevronRight,
+  GraduationCap,
+  LockKeyhole,
+  Search,
+  ShieldCheck,
+  ShieldEllipsis,
+} from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import type { AppRole } from "@/lib/roles";
@@ -45,6 +53,42 @@ function roleMeta(role: AppRole) {
   };
 }
 
+function formatPhone(phone: string) {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length !== 12 || !digits.startsWith("52")) return phone;
+  const national = digits.slice(2);
+  return `+52 ${national.slice(0, 3)} ${national.slice(3, 6)} ${national.slice(6)}`;
+}
+
+function UserContent({ user }: { user: ManagedUserItem }) {
+  const meta = roleMeta(user.role);
+  const Icon = meta.icon;
+
+  return (
+    <>
+      <span className="grid size-12 place-items-center rounded-full bg-primary/10 text-primary">
+        <Icon className="size-6" />
+      </span>
+      <span className="min-w-0">
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="truncate font-semibold">{user.fullName}</span>
+          <span className={`shrink-0 rounded-full px-2 py-1 text-[0.65rem] font-semibold ${meta.badge}`}>
+            {meta.label}
+          </span>
+        </span>
+        <span className="mt-1 block truncate text-sm text-muted-foreground">
+          {user.email}
+        </span>
+        {user.phone ? (
+          <span className="mt-0.5 block text-xs text-muted-foreground">
+            {formatPhone(user.phone)}
+          </span>
+        ) : null}
+      </span>
+    </>
+  );
+}
+
 export function UserList({ users }: { users: ManagedUserItem[] }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("todos");
@@ -54,7 +98,8 @@ export function UserList({ users }: { users: ManagedUserItem[] }) {
     return users.filter((user) => {
       const matchesText =
         user.fullName.toLocaleLowerCase("es-MX").includes(normalized) ||
-        user.email.toLocaleLowerCase("es-MX").includes(normalized);
+        user.email.toLocaleLowerCase("es-MX").includes(normalized) ||
+        (user.phone ?? "").includes(normalized);
       const matchesRole =
         filter === "todos" ||
         (filter === "administradores" &&
@@ -99,36 +144,30 @@ export function UserList({ users }: { users: ManagedUserItem[] }) {
       <div className="mt-3 min-h-0 overflow-y-auto overscroll-contain rounded-2xl border bg-card">
         {visibleUsers.length ? (
           <ul className="divide-y">
-            {visibleUsers.map((user) => {
-              const meta = roleMeta(user.role);
-              const Icon = meta.icon;
-              return (
+            {visibleUsers.map((user) =>
+              user.role === "superadmin" ? (
                 <li
                   key={user.id}
-                  className="grid min-h-24 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 px-4 py-3"
+                  className="grid min-h-24 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3"
                 >
-                  <span className="grid size-12 place-items-center rounded-full bg-primary/10 text-primary">
-                    <Icon className="size-6" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span className="truncate font-semibold">{user.fullName}</span>
-                      <span className={`shrink-0 rounded-full px-2 py-1 text-[0.65rem] font-semibold ${meta.badge}`}>
-                        {meta.label}
-                      </span>
-                    </span>
-                    <span className="mt-1 block truncate text-sm text-muted-foreground">
-                      {user.email}
-                    </span>
-                    {user.phone ? (
-                      <span className="mt-0.5 block text-xs text-muted-foreground">
-                        {user.phone}
-                      </span>
-                    ) : null}
+                  <UserContent user={user} />
+                  <span className="grid size-9 place-items-center rounded-full bg-secondary text-muted-foreground" title="Cuenta protegida">
+                    <LockKeyhole className="size-4" />
                   </span>
                 </li>
-              );
-            })}
+              ) : (
+                <li key={user.id}>
+                  <Link
+                    href={`/usuarios/${user.id}/editar`}
+                    aria-label={`Editar a ${user.fullName}`}
+                    className="grid min-h-24 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 transition-colors hover:bg-secondary/60 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary active:bg-secondary"
+                  >
+                    <UserContent user={user} />
+                    <ChevronRight className="size-5 text-muted-foreground" />
+                  </Link>
+                </li>
+              )
+            )}
           </ul>
         ) : (
           <p className="px-5 py-12 text-center text-sm text-muted-foreground">
