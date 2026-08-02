@@ -6,6 +6,7 @@ drop view if exists public.student_overview;
 drop trigger if exists on_auth_user_created on auth.users;
 drop function if exists public.handle_new_staff_user();
 drop function if exists public.save_attendance;
+drop function if exists public.save_playlist_tracks;
 drop function if exists public.confirm_membership_payment;
 drop function if exists public.register_membership_payment;
 drop function if exists public.mark_attendance(uuid);
@@ -18,6 +19,7 @@ drop table if exists public.class_sessions cascade;
 drop table if exists public.classes cascade;
 drop table if exists public.playlist_tracks cascade;
 drop table if exists public.playlists cascade;
+drop table if exists public.spotify_connections cascade;
 drop table if exists public.payments cascade;
 drop table if exists public.memberships cascade;
 drop table if exists public.membership_plans cascade;
@@ -139,10 +141,20 @@ create table public.payments (
 
 create table public.playlists (
   id uuid primary key default gen_random_uuid(),
-  name text not null unique,
+  name text not null,
+  description text not null default '',
   external_url text,
+  is_public boolean not null default false,
+  use_at_class_end boolean not null default true,
+  spotify_playlist_id text,
+  spotify_snapshot_id text,
+  spotify_owner_id uuid references public.profiles(id) on delete set null,
+  sync_status text not null default 'local'
+    check (sync_status in ('local', 'pendiente', 'sincronizada', 'error')),
+  synced_at timestamptz,
   active boolean not null default true,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
 create table public.playlist_tracks (
@@ -150,12 +162,26 @@ create table public.playlist_tracks (
   playlist_id uuid not null references public.playlists(id) on delete cascade,
   title text not null,
   artist text,
+  album_name text,
   bpm integer check (bpm is null or bpm > 0),
   genre text,
   duration_seconds integer check (duration_seconds is null or duration_seconds > 0),
   position integer not null check (position > 0),
   external_url text,
+  spotify_uri text,
   unique (playlist_id, position)
+);
+
+create table public.spotify_connections (
+  user_id uuid primary key references public.profiles(id) on delete cascade,
+  spotify_user_id text not null,
+  display_name text,
+  access_token_ciphertext text not null,
+  refresh_token_ciphertext text not null,
+  token_expires_at timestamptz not null,
+  scope text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
 create table public.classes (
@@ -239,6 +265,10 @@ create index payments_membership_idx on public.payments (membership_id);
 create index payments_recorded_by_idx on public.payments (recorded_by);
 create index playlist_tracks_playlist_idx
   on public.playlist_tracks (playlist_id, position);
+create unique index playlists_spotify_playlist_id_key
+  on public.playlists (spotify_playlist_id)
+  where spotify_playlist_id is not null;
+create index playlists_spotify_owner_idx on public.playlists (spotify_owner_id);
 create index classes_instructor_idx on public.classes (instructor_id);
 create index classes_playlist_idx on public.classes (playlist_id);
 create index class_sessions_class_starts_idx
@@ -686,6 +716,77 @@ begin
 end;
 $$;
 
+create or replace function public.save_playlist_tracks(
+  p_playlist_id uuid,
+  p_tracks jsonb,
+  p_snapshot_id text default null,
+  p_synced boolean default false
+)
+returns void
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_track_count integer;
+begin
+  if (select auth.uid()) is null then
+    raise exception 'authentication required';
+  end if;
+
+  if jsonb_typeof(p_tracks) is distinct from 'array' then
+    raise exception 'tracks must be a JSON array';
+  end if;
+
+  v_track_count := jsonb_array_length(p_tracks);
+  if v_track_count > 1000 then
+    raise exception 'playlist exceeds the 1000 item limit';
+  end if;
+
+  perform id
+  from public.playlists
+  where id = p_playlist_id
+    and spotify_owner_id = (select auth.uid())
+  for update;
+
+  if not found then
+    raise exception 'playlist not found or not owned by current user';
+  end if;
+
+  delete from public.playlist_tracks
+  where playlist_id = p_playlist_id;
+
+  insert into public.playlist_tracks (
+    playlist_id,
+    title,
+    artist,
+    album_name,
+    duration_seconds,
+    position,
+    external_url,
+    spotify_uri
+  )
+  select
+    p_playlist_id,
+    coalesce(nullif(btrim(track.value ->> 'title'), ''), 'Canción'),
+    nullif(btrim(track.value ->> 'artist'), ''),
+    nullif(btrim(track.value ->> 'album_name'), ''),
+    nullif(track.value ->> 'duration_seconds', '')::integer,
+    track.ordinality::integer,
+    nullif(btrim(track.value ->> 'external_url'), ''),
+    nullif(btrim(track.value ->> 'spotify_uri'), '')
+  from jsonb_array_elements(p_tracks) with ordinality as track(value, ordinality);
+
+  update public.playlists
+  set
+    spotify_snapshot_id = case when p_synced then p_snapshot_id else spotify_snapshot_id end,
+    sync_status = case when p_synced then 'sincronizada' else 'pendiente' end,
+    synced_at = case when p_synced then now() else synced_at end,
+    updated_at = now()
+  where id = p_playlist_id;
+end;
+$$;
+
 revoke all on function public.register_membership_payment(
   uuid,
   uuid,
@@ -702,6 +803,8 @@ revoke all on function public.save_attendance(uuid, uuid[], uuid[])
   from public, anon;
 revoke all on function public.finish_class_session(uuid, text)
   from public, anon;
+revoke all on function public.save_playlist_tracks(uuid, jsonb, text, boolean)
+  from public, anon;
 grant execute on function public.register_membership_payment(
   uuid,
   uuid,
@@ -717,6 +820,8 @@ grant execute on function public.confirm_membership_payment(
 grant execute on function public.save_attendance(uuid, uuid[], uuid[])
   to authenticated;
 grant execute on function public.finish_class_session(uuid, text)
+  to authenticated;
+grant execute on function public.save_playlist_tracks(uuid, jsonb, text, boolean)
   to authenticated;
 
 create or replace function public.handle_new_staff_user()
@@ -813,6 +918,46 @@ create policy staff_update_own_profile
   using (id = (select auth.uid()))
   with check (id = (select auth.uid()));
 
+alter table public.spotify_connections enable row level security;
+create policy playlists_owner_or_legacy
+  on public.playlists
+  as restrictive
+  for all
+  to authenticated
+  using (spotify_owner_id is null or spotify_owner_id = (select auth.uid()))
+  with check (spotify_owner_id is null or spotify_owner_id = (select auth.uid()));
+create policy playlist_tracks_owner_or_legacy
+  on public.playlist_tracks
+  as restrictive
+  for all
+  to authenticated
+  using (
+    exists (
+      select 1 from public.playlists
+      where playlists.id = playlist_tracks.playlist_id
+        and (playlists.spotify_owner_id is null or playlists.spotify_owner_id = (select auth.uid()))
+    )
+  )
+  with check (
+    exists (
+      select 1 from public.playlists
+      where playlists.id = playlist_tracks.playlist_id
+        and (playlists.spotify_owner_id is null or playlists.spotify_owner_id = (select auth.uid()))
+    )
+  );
+create policy spotify_connections_owner_access
+  on public.spotify_connections
+  for all
+  to authenticated
+  using (
+    user_id = (select auth.uid())
+    and ((select auth.jwt()) -> 'app_metadata' ->> 'role') in ('instructor', 'admin')
+  )
+  with check (
+    user_id = (select auth.uid())
+    and ((select auth.jwt()) -> 'app_metadata' ->> 'role') in ('instructor', 'admin')
+  );
+
 revoke all on table
   public.academy_settings,
   public.profiles,
@@ -829,6 +974,7 @@ revoke all on table
   public.message_batches,
   public.message_recipients
 from anon;
+revoke all on table public.spotify_connections from public, anon;
 revoke all on table public.student_overview, public.session_overview
   from public, anon;
 
@@ -846,6 +992,7 @@ grant select, insert, update on public.attendance to authenticated;
 grant select, insert, update, delete on public.message_templates to authenticated;
 grant select, insert, update on public.message_batches to authenticated;
 grant select, insert, update on public.message_recipients to authenticated;
+grant select, insert, update, delete on public.spotify_connections to authenticated;
 grant select on public.student_overview, public.session_overview to authenticated;
 
 insert into public.academy_settings (id) values (true);
