@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { updateClass } from "@/app/actions/more";
 import {
   ClassForm,
+  type ClassOccupiedSchedule,
   type ClassPlaylistOption,
 } from "@/components/features/more/class-form";
 import { MoreShell } from "@/components/features/more/more-shell";
@@ -12,7 +13,9 @@ import { createClient } from "@/lib/supabase/server";
 function endTime(start: string, duration: number) {
   const [hour, minute] = start.slice(0, 5).split(":").map(Number);
   const total = hour * 60 + minute + duration;
-  return `${String(Math.floor(total / 60) % 24).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(
+    total % 60
+  ).padStart(2, "0")}`;
 }
 
 type ClassRow = {
@@ -25,7 +28,18 @@ type ClassRow = {
   weekday: number;
 };
 
-export default async function EditClassPage({ params }: { params: Promise<{ id: string }> }) {
+type ScheduledClassRow = {
+  duration_minutes: number;
+  name: string;
+  start_time: string;
+  weekday: number;
+};
+
+export default async function EditClassPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = await params;
   const supabase = await createClient();
   const {
@@ -33,19 +47,36 @@ export default async function EditClassPage({ params }: { params: Promise<{ id: 
   } = await supabase.auth.getUser();
   if (!user) redirect("/acceso");
 
-  const [{ data: profile }, { data }, { data: playlistRows, error: playlistError }] =
-    await Promise.all([
-      supabase.from("profiles").select("role").eq("id", user.id).single(),
-      supabase.from("classes").select("*").eq("id", id).eq("active", true).maybeSingle(),
-      supabase
-        .from("playlists")
-        .select("id, name")
-        .eq("active", true)
-        .order("name"),
-    ]);
+  const [
+    { data: profile },
+    { data },
+    { data: playlistRows, error: playlistError },
+    { data: classRows, error: classError },
+  ] = await Promise.all([
+    supabase.from("profiles").select("role").eq("id", user.id).single(),
+    supabase.from("classes").select("*").eq("id", id).eq("active", true).maybeSingle(),
+    supabase
+      .from("playlists")
+      .select("id, name")
+      .eq("active", true)
+      .order("name"),
+    supabase
+      .from("classes")
+      .select("name, weekday, start_time, duration_minutes")
+      .eq("active", true)
+      .neq("id", id)
+      .order("weekday")
+      .order("start_time"),
+  ]);
+
   if (!canManageOperations(normalizeRole(String(profile?.role)))) redirect("/mas");
   if (!data) notFound();
-  if (playlistError) throw new Error(`No se pudieron cargar las playlists: ${playlistError.message}`);
+  if (playlistError) {
+    throw new Error(`No se pudieron cargar las playlists: ${playlistError.message}`);
+  }
+  if (classError) {
+    throw new Error(`No se pudieron cargar los horarios ocupados: ${classError.message}`);
+  }
 
   const playlistIds = (playlistRows ?? []).map((playlist) => playlist.id);
   const { data: trackRows, error: trackError } = playlistIds.length
@@ -54,7 +85,9 @@ export default async function EditClassPage({ params }: { params: Promise<{ id: 
         .select("playlist_id")
         .in("playlist_id", playlistIds)
     : { data: [], error: null };
-  if (trackError) throw new Error(`No se pudieron contar las canciones: ${trackError.message}`);
+  if (trackError) {
+    throw new Error(`No se pudieron contar las canciones: ${trackError.message}`);
+  }
 
   const counts = new Map<string, number>();
   for (const track of trackRows ?? []) {
@@ -64,6 +97,15 @@ export default async function EditClassPage({ params }: { params: Promise<{ id: 
     id: playlist.id,
     name: playlist.name,
     trackCount: counts.get(playlist.id) ?? 0,
+  }));
+
+  const occupiedSchedules: ClassOccupiedSchedule[] = (
+    (classRows ?? []) as ScheduledClassRow[]
+  ).map((item) => ({
+    end: endTime(item.start_time, item.duration_minutes),
+    name: item.name,
+    start: item.start_time.slice(0, 5),
+    weekday: item.weekday,
   }));
 
   const item = data as ClassRow;
@@ -85,6 +127,7 @@ export default async function EditClassPage({ params }: { params: Promise<{ id: 
         defaultWeekdays={[item.weekday]}
         multipleIntervals={false}
         multipleWeekdays={false}
+        occupiedSchedules={occupiedSchedules}
         playlists={playlists}
         submitLabel="Guardar cambios"
       />
