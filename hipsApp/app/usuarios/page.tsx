@@ -25,7 +25,7 @@ export default async function UsersPage({
     supabase.from("profiles").select("role").eq("id", user.id).maybeSingle(),
     searchParams,
   ]);
-  if (currentProfile?.role !== "superadmin") redirect("/alumnos");
+  if (normalizeRole(currentProfile?.role) !== "superadmin") redirect("/alumnos");
 
   const [profilesResult, studentsResult] = await Promise.all([
     supabase
