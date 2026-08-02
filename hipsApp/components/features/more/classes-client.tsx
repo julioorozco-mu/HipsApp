@@ -1,8 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarDays, ChevronLeft, ChevronRight, Clock3, Pencil, Trash2 } from "lucide-react";
-import { useRef, useState } from "react";
+import {
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
+  Pencil,
+  Trash2,
+  TriangleAlert,
+} from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
 
 import { deleteClass } from "@/app/actions/more";
 
@@ -15,13 +24,73 @@ export type ClassItem = {
   weekday: number;
 };
 
-const week = [
-  { date: 3, label: "Dom", weekday: 0 },
-  { date: 4, label: "Lun", weekday: 1 },
-  { date: 5, label: "Mar", weekday: 2 },
-  { date: 6, label: "Mié", weekday: 3 },
-  { date: 7, label: "Jue", weekday: 4 },
-];
+type CalendarDay = {
+  date: Date;
+  dayNumber: number;
+  iso: string;
+  label: string;
+  weekday: number;
+};
+
+const weekdayLabels = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+
+function parseLocalDate(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day, 12, 0, 0, 0);
+}
+
+function addDays(date: Date, amount: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + amount);
+  return next;
+}
+
+function dateKey(date: Date) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function capitalize(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function calendarDays(start: Date): CalendarDay[] {
+  return Array.from({ length: 5 }, (_, index) => {
+    const date = addDays(start, index);
+    return {
+      date,
+      dayNumber: date.getDate(),
+      iso: dateKey(date),
+      label: weekdayLabels[date.getDay()],
+      weekday: date.getDay(),
+    };
+  });
+}
+
+function monthLabel(days: CalendarDay[]) {
+  const first = days[0].date;
+  const last = days.at(-1)?.date ?? first;
+  const month = new Intl.DateTimeFormat("es-MX", {
+    month: "long",
+    year: "numeric",
+  });
+
+  if (
+    first.getMonth() === last.getMonth() &&
+    first.getFullYear() === last.getFullYear()
+  ) {
+    return capitalize(month.format(first));
+  }
+
+  const firstLabel = new Intl.DateTimeFormat("es-MX", {
+    month: "long",
+    year: first.getFullYear() === last.getFullYear() ? undefined : "numeric",
+  }).format(first);
+  return `${capitalize(firstLabel)} – ${capitalize(month.format(last))}`;
+}
 
 function timeLabel(value: string) {
   const [hourValue, minute] = value.slice(0, 5).split(":").map(Number);
@@ -29,95 +98,180 @@ function timeLabel(value: string) {
   return `${hourValue % 12 || 12}:${String(minute).padStart(2, "0")} ${suffix}`;
 }
 
+function DeleteSubmitButton() {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="min-h-12 flex-1 rounded-xl bg-destructive px-4 font-semibold text-destructive-foreground disabled:opacity-60"
+    >
+      {pending ? "Eliminando…" : "Eliminar clase"}
+    </button>
+  );
+}
+
 function SwipeClassCard({ item }: { item: ClassItem }) {
   const [open, setOpen] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const pointerStart = useRef<number | null>(null);
   const deleteAction = deleteClass.bind(null, item.id);
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border bg-secondary">
-      <div className="absolute inset-y-0 right-0 grid w-36 grid-cols-2">
-        <Link
-          href={`/clases/${item.id}/editar`}
-          className="flex flex-col items-center justify-center gap-1 bg-primary text-xs font-semibold text-primary-foreground"
-        >
-          <Pencil className="size-5" /> Editar
-        </Link>
-        <form action={deleteAction} className="contents">
+    <>
+      <div className="relative overflow-hidden rounded-2xl border bg-secondary">
+        <div className="absolute inset-y-0 right-0 z-10 grid w-40 grid-cols-2">
+          <Link
+            href={`/clases/${item.id}/editar`}
+            onClick={(event) => event.stopPropagation()}
+            className="flex flex-col items-center justify-center gap-1 bg-primary text-xs font-semibold text-primary-foreground"
+          >
+            <Pencil className="size-5" /> Editar
+          </Link>
           <button
-            type="submit"
+            type="button"
             onClick={(event) => {
-              if (!window.confirm(`¿Eliminar ${item.name}?`)) event.preventDefault();
+              event.stopPropagation();
+              setConfirming(true);
             }}
             className="flex flex-col items-center justify-center gap-1 bg-destructive text-xs font-semibold text-destructive-foreground"
           >
             <Trash2 className="size-5" /> Eliminar
           </button>
-        </form>
+        </div>
+
+        <article
+          onPointerDown={(event) => {
+            if (!open) pointerStart.current = event.clientX;
+          }}
+          onPointerUp={(event) => {
+            if (pointerStart.current === null) return;
+            const distance = event.clientX - pointerStart.current;
+            if (distance < -35) setOpen(true);
+            pointerStart.current = null;
+          }}
+          style={{
+            pointerEvents: open ? "none" : "auto",
+            transform: open ? "translateX(-10rem)" : "translateX(0)",
+          }}
+          className="relative z-20 bg-card p-4 transition-transform duration-200 touch-pan-y"
+        >
+          <div className="flex items-start gap-3">
+            <span className="grid size-12 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
+              <CalendarDays className="size-6" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="truncate font-bold">{item.name}</h2>
+                <span className="shrink-0 rounded-full bg-green-100 px-2 py-1 text-xs text-green-700">
+                  Activa
+                </span>
+              </div>
+              <p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+                <Clock3 className="size-4" />
+                {timeLabel(item.startTime)} · {item.durationMinutes} min
+              </p>
+              <p className="mt-2 text-sm">Cupo máximo: {item.capacity}</p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Desliza a la izquierda para editar o eliminar.
+              </p>
+            </div>
+          </div>
+        </article>
       </div>
 
-      <article
-        onPointerDown={(event) => {
-          pointerStart.current = event.clientX;
-        }}
-        onPointerUp={(event) => {
-          if (pointerStart.current === null) return;
-          const distance = event.clientX - pointerStart.current;
-          if (distance < -35) setOpen(true);
-          if (distance > 35) setOpen(false);
-          pointerStart.current = null;
-        }}
-        onClick={() => open && setOpen(false)}
-        style={{ transform: open ? "translateX(-9rem)" : "translateX(0)" }}
-        className="relative z-10 bg-card p-4 transition-transform duration-200 touch-pan-y"
-      >
-        <div className="flex items-start gap-3">
-          <span className="grid size-12 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
-            <CalendarDays className="size-6" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="truncate font-bold">{item.name}</h2>
-              <span className="shrink-0 rounded-full bg-green-100 px-2 py-1 text-xs text-green-700">
-                Activa
-              </span>
-            </div>
-            <p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
-              <Clock3 className="size-4" />
-              {timeLabel(item.startTime)} · {item.durationMinutes} min
+      {confirming ? (
+        <div
+          className="fixed inset-0 z-[80] grid place-items-end bg-black/45 p-3 sm:place-items-center"
+          role="presentation"
+          onPointerDown={(event) => {
+            if (event.currentTarget === event.target) {
+              setConfirming(false);
+              setOpen(false);
+            }
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={`delete-title-${item.id}`}
+            className="w-full max-w-sm rounded-[1.75rem] bg-card p-5 shadow-2xl"
+          >
+            <span className="grid size-12 place-items-center rounded-full bg-destructive/10 text-destructive">
+              <TriangleAlert className="size-6" />
+            </span>
+            <h2 id={`delete-title-${item.id}`} className="mt-4 text-xl font-bold">
+              ¿Eliminar esta clase?
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              <strong className="text-foreground">{item.name}</strong> dejará de aparecer en
+              el calendario y ya no generará sesiones de asistencia. El registro se conservará
+              como inactivo.
             </p>
-            <p className="mt-2 text-sm">Cupo máximo: {item.capacity}</p>
-            <p className="mt-2 text-xs text-muted-foreground">Desliza a la izquierda para editar o eliminar.</p>
-          </div>
+            <form action={deleteAction} className="mt-6 flex gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirming(false);
+                  setOpen(false);
+                }}
+                className="min-h-12 flex-1 rounded-xl border px-4 font-semibold"
+              >
+                Cancelar
+              </button>
+              <DeleteSubmitButton />
+            </form>
+          </section>
         </div>
-      </article>
-    </div>
+      ) : null}
+    </>
   );
 }
 
-export function ClassesClient({ classes }: { classes: ClassItem[] }) {
-  const [selectedWeekday, setSelectedWeekday] = useState(0);
-  const [offset, setOffset] = useState(0);
-  const visibleClasses = classes.filter((item) => item.weekday === selectedWeekday);
+export function ClassesClient({
+  classes,
+  today,
+}: {
+  classes: ClassItem[];
+  today: string;
+}) {
+  const initialDate = useMemo(() => parseLocalDate(today), [today]);
+  const [windowStart, setWindowStart] = useState(initialDate);
+  const [selectedDate, setSelectedDate] = useState(initialDate);
+  const days = useMemo(() => calendarDays(windowStart), [windowStart]);
+  const selectedKey = dateKey(selectedDate);
+  const visibleClasses = classes.filter(
+    (item) => item.weekday === selectedDate.getDay()
+  );
+
+  function navigate(amount: number) {
+    const next = addDays(windowStart, amount);
+    setWindowStart(next);
+    setSelectedDate(next);
+  }
 
   return (
-    <div className="grid gap-5">
-      <section aria-label="Calendario semanal" className="rounded-3xl border bg-card p-4 shadow-sm">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-semibold">Agosto 2026</h2>
-          <div className="flex items-center gap-2">
+    <div className="grid gap-5 pb-20">
+      <section
+        aria-label="Calendario semanal"
+        className="rounded-3xl border bg-card p-4 shadow-sm"
+      >
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="min-w-0 text-lg font-semibold sm:text-xl">{monthLabel(days)}</h2>
+          <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
-              aria-label="Semana anterior"
-              onClick={() => setOffset((current) => current - 5)}
+              aria-label="Cinco días anteriores"
+              onClick={() => navigate(-5)}
               className="grid size-10 place-items-center rounded-full hover:bg-secondary"
             >
               <ChevronLeft className="size-6" />
             </button>
             <button
               type="button"
-              aria-label="Semana siguiente"
-              onClick={() => setOffset((current) => current + 5)}
+              aria-label="Cinco días siguientes"
+              onClick={() => navigate(5)}
               className="grid size-10 place-items-center rounded-full hover:bg-secondary"
             >
               <ChevronRight className="size-6" />
@@ -128,36 +282,39 @@ export function ClassesClient({ classes }: { classes: ClassItem[] }) {
         <div className="grid grid-cols-[2.75rem_repeat(5,minmax(0,1fr))_2.75rem] items-center gap-2">
           <button
             type="button"
-            aria-label="Semana anterior"
-            onClick={() => setOffset((current) => current - 5)}
+            aria-label="Cinco días anteriores"
+            onClick={() => navigate(-5)}
             className="grid size-11 place-items-center rounded-full border-2 text-muted-foreground"
           >
             <ChevronLeft className="size-6" />
           </button>
 
-          {week.map((day) => {
-            const selected = day.weekday === selectedWeekday;
+          {days.map((day) => {
+            const selected = day.iso === selectedKey;
             return (
               <button
-                key={day.weekday}
+                key={day.iso}
                 type="button"
-                onClick={() => setSelectedWeekday(day.weekday)}
+                onClick={() => setSelectedDate(day.date)}
+                aria-pressed={selected}
                 className={`grid min-h-24 place-items-center rounded-2xl px-1 transition-colors ${
                   selected
                     ? "bg-primary text-primary-foreground shadow-lg"
                     : "bg-primary/8 hover:bg-primary/15"
                 }`}
               >
-                <span className="text-base">{day.label}</span>
-                <strong className="text-3xl font-medium">{day.date + offset}</strong>
+                <span className="text-sm sm:text-base">{day.label}</span>
+                <strong className="text-2xl font-medium sm:text-3xl">
+                  {day.dayNumber}
+                </strong>
               </button>
             );
           })}
 
           <button
             type="button"
-            aria-label="Semana siguiente"
-            onClick={() => setOffset((current) => current + 5)}
+            aria-label="Cinco días siguientes"
+            onClick={() => navigate(5)}
             className="grid size-11 place-items-center rounded-full border-2 text-muted-foreground"
           >
             <ChevronRight className="size-6" />
@@ -166,7 +323,9 @@ export function ClassesClient({ classes }: { classes: ClassItem[] }) {
       </section>
 
       <section className="grid gap-3">
-        {visibleClasses.map((item) => <SwipeClassCard key={item.id} item={item} />)}
+        {visibleClasses.map((item) => (
+          <SwipeClassCard key={item.id} item={item} />
+        ))}
         {!visibleClasses.length ? (
           <p className="rounded-2xl border border-dashed p-8 text-center text-muted-foreground">
             No hay clases registradas para este día.
