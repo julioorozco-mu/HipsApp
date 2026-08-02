@@ -18,6 +18,13 @@ const days = [
 
 type Interval = { end: string; start: string };
 
+export type ClassOccupiedSchedule = {
+  end: string;
+  name: string;
+  start: string;
+  weekday: number;
+};
+
 export type ClassPlaylistOption = {
   id: string;
   name: string;
@@ -33,37 +40,147 @@ type ClassFormProps = {
   defaultWeekdays?: number[];
   multipleIntervals?: boolean;
   multipleWeekdays?: boolean;
+  occupiedSchedules?: ClassOccupiedSchedule[];
   playlists?: ClassPlaylistOption[];
   submitLabel: string;
 };
 
-const timeOptions = Array.from({ length: 48 }, (_, index) => {
-  const minutes = index * 30;
-  const hour = Math.floor(minutes / 60);
-  const minute = minutes % 60;
-  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-});
+const startTimeOptions = Array.from({ length: 48 }, (_, index) =>
+  formatMinutes(index * 30)
+);
+const endTimeOptions = Array.from({ length: 48 }, (_, index) =>
+  formatMinutes((index + 1) * 30)
+);
+
+function formatMinutes(total: number) {
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(
+    total % 60
+  ).padStart(2, "0")}`;
+}
+
+function minutes(time: string) {
+  const [hour, minute] = time.split(":").map(Number);
+  return hour * 60 + minute;
+}
 
 function timeLabel(value: string) {
-  const [hourValue, minute] = value.split(":").map(Number);
+  const total = minutes(value);
+  if (total === 24 * 60) return "12:00 a. m. (día siguiente)";
+  const hourValue = Math.floor(total / 60);
+  const minute = total % 60;
   const suffix = hourValue >= 12 ? "p. m." : "a. m.";
   const hour = hourValue % 12 || 12;
   return `${hour}:${String(minute).padStart(2, "0")} ${suffix}`;
 }
 
 function duration({ start, end }: Interval) {
-  const [startHour, startMinute] = start.split(":").map(Number);
-  const [endHour, endMinute] = end.split(":").map(Number);
-  return endHour * 60 + endMinute - (startHour * 60 + startMinute);
+  return minutes(end) - minutes(start);
 }
 
-function nextInterval(current: Interval[]) {
-  const last = current.at(-1) ?? { start: "09:00", end: "10:00" };
-  const endIndex = timeOptions.indexOf(last.end);
-  const start = timeOptions[Math.min(endIndex + 1, timeOptions.length - 3)] ?? "10:30";
-  const startIndex = timeOptions.indexOf(start);
-  const end = timeOptions[Math.min(startIndex + 2, timeOptions.length - 1)] ?? "11:30";
-  return { start, end };
+function overlaps(left: Interval, right: Interval) {
+  return minutes(left.start) < minutes(right.end) && minutes(left.end) > minutes(right.start);
+}
+
+function oneHourLater(start: string) {
+  const total = minutes(start) + 60;
+  return total <= 24 * 60 ? formatMinutes(total) : null;
+}
+
+function selectedScheduleDays(selectedWeekdays: number[]) {
+  return selectedWeekdays.length ? selectedWeekdays : [];
+}
+
+function startConflict(
+  start: string,
+  index: number,
+  intervals: Interval[],
+  selectedWeekdays: number[],
+  occupiedSchedules: ClassOccupiedSchedule[]
+) {
+  const end = oneHourLater(start);
+  if (!end) return "Fuera del horario del día";
+  const candidate = { start, end };
+  const selectedDays = selectedScheduleDays(selectedWeekdays);
+
+  const occupied = occupiedSchedules.find(
+    (schedule) =>
+      selectedDays.includes(schedule.weekday) &&
+      minutes(candidate.start) <= minutes(schedule.end) &&
+      minutes(candidate.end) > minutes(schedule.start)
+  );
+  if (occupied) return occupied.name;
+
+  const local = intervals.find(
+    (interval, itemIndex) => itemIndex !== index && overlaps(candidate, interval)
+  );
+  return local ? "Otro horario de esta clase" : null;
+}
+
+function endConflict(
+  end: string,
+  index: number,
+  intervals: Interval[],
+  selectedWeekdays: number[],
+  occupiedSchedules: ClassOccupiedSchedule[]
+) {
+  const candidate = { start: intervals[index].start, end };
+  if (duration(candidate) <= 0) return "Debe ser posterior al inicio";
+  const selectedDays = selectedScheduleDays(selectedWeekdays);
+
+  const occupied = occupiedSchedules.find(
+    (schedule) =>
+      selectedDays.includes(schedule.weekday) && overlaps(candidate, schedule)
+  );
+  if (occupied) return occupied.name;
+
+  const local = intervals.find(
+    (interval, itemIndex) => itemIndex !== index && overlaps(candidate, interval)
+  );
+  return local ? "Otro horario de esta clase" : null;
+}
+
+function actualConflict(
+  interval: Interval,
+  index: number,
+  intervals: Interval[],
+  selectedWeekdays: number[],
+  occupiedSchedules: ClassOccupiedSchedule[]
+) {
+  if (duration(interval) <= 0) return "La hora final debe ser posterior a la inicial.";
+  const selectedDays = selectedScheduleDays(selectedWeekdays);
+  const occupied = occupiedSchedules.find(
+    (schedule) =>
+      selectedDays.includes(schedule.weekday) && overlaps(interval, schedule)
+  );
+  if (occupied) return `Se cruza con “${occupied.name}”.`;
+  if (
+    intervals.some(
+      (other, itemIndex) => itemIndex !== index && overlaps(interval, other)
+    )
+  ) {
+    return "Se cruza con otro horario de esta clase.";
+  }
+  return null;
+}
+
+function nextInterval(
+  current: Interval[],
+  selectedWeekdays: number[],
+  occupiedSchedules: ClassOccupiedSchedule[]
+) {
+  const lastEnd = current.at(-1)?.end ?? "08:00";
+  const firstIndex = Math.max(0, startTimeOptions.findIndex((time) => minutes(time) >= minutes(lastEnd)));
+  for (let index = firstIndex; index < startTimeOptions.length; index += 1) {
+    const start = startTimeOptions[index];
+    const end = oneHourLater(start);
+    if (
+      end &&
+      !startConflict(start, current.length, current, selectedWeekdays, occupiedSchedules)
+    ) {
+      return { start, end };
+    }
+  }
+  return { start: "09:00", end: "10:00" };
 }
 
 export function ClassForm({
@@ -75,17 +192,32 @@ export function ClassForm({
   defaultWeekdays = [],
   multipleIntervals = true,
   multipleWeekdays = true,
+  occupiedSchedules = [],
   playlists = [],
   submitLabel,
 }: ClassFormProps) {
   const [intervals, setIntervals] = useState<Interval[]>(defaultIntervals);
+  const [selectedWeekdays, setSelectedWeekdays] = useState<number[]>(defaultWeekdays);
 
   function updateInterval(index: number, field: keyof Interval, value: string) {
     setIntervals((current) =>
-      current.map((interval, itemIndex) =>
-        itemIndex === index ? { ...interval, [field]: value } : interval
-      )
+      current.map((interval, itemIndex) => {
+        if (itemIndex !== index) return interval;
+        if (field === "start") {
+          return { start: value, end: oneHourLater(value) ?? interval.end };
+        }
+        return { ...interval, end: value };
+      })
     );
+  }
+
+  function toggleWeekday(index: number) {
+    setSelectedWeekdays((current) => {
+      if (!multipleWeekdays) return [index];
+      return current.includes(index)
+        ? current.filter((day) => day !== index)
+        : [...current, index].sort();
+    });
   }
 
   return (
@@ -139,7 +271,8 @@ export function ClassForm({
                 type={multipleWeekdays ? "checkbox" : "radio"}
                 name="weekday"
                 value={index}
-                defaultChecked={defaultWeekdays.includes(index)}
+                checked={selectedWeekdays.includes(index)}
+                onChange={() => toggleWeekday(index)}
               />
               {day}
             </label>
@@ -149,12 +282,22 @@ export function ClassForm({
 
       <fieldset className="grid gap-3">
         <div className="flex items-center justify-between gap-3">
-          <legend className="text-sm font-semibold">Horarios</legend>
+          <div>
+            <legend className="text-sm font-semibold">Horarios</legend>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Al elegir el inicio, el término se calcula automáticamente una hora después.
+            </p>
+          </div>
           {multipleIntervals ? (
             <button
               type="button"
-              onClick={() => setIntervals((current) => [...current, nextInterval(current)])}
-              className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-primary px-3 text-sm font-semibold text-primary"
+              onClick={() =>
+                setIntervals((current) => [
+                  ...current,
+                  nextInterval(current, selectedWeekdays, occupiedSchedules),
+                ])
+              }
+              className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl border border-primary px-3 text-sm font-semibold text-primary"
             >
               <Plus className="size-4" /> Agregar
             </button>
@@ -163,6 +306,13 @@ export function ClassForm({
 
         {intervals.map((interval, index) => {
           const intervalDuration = duration(interval);
+          const conflict = actualConflict(
+            interval,
+            index,
+            intervals,
+            selectedWeekdays,
+            occupiedSchedules
+          );
           return (
             <div key={index} className="rounded-2xl border p-3">
               <div className="grid grid-cols-[1fr_auto_1fr_auto] items-end gap-2">
@@ -173,9 +323,20 @@ export function ClassForm({
                     value={interval.start}
                     onChange={(event) => updateInterval(index, "start", event.target.value)}
                   >
-                    {timeOptions.map((time) => (
-                      <option key={time} value={time}>{timeLabel(time)}</option>
-                    ))}
+                    {startTimeOptions.map((time) => {
+                      const unavailable = startConflict(
+                        time,
+                        index,
+                        intervals,
+                        selectedWeekdays,
+                        occupiedSchedules
+                      );
+                      return (
+                        <option key={time} value={time} disabled={Boolean(unavailable)}>
+                          {timeLabel(time)}{unavailable ? ` · Ocupado` : ""}
+                        </option>
+                      );
+                    })}
                   </select>
                 </label>
                 <span className="pb-3 text-muted-foreground">–</span>
@@ -186,9 +347,20 @@ export function ClassForm({
                     value={interval.end}
                     onChange={(event) => updateInterval(index, "end", event.target.value)}
                   >
-                    {timeOptions.map((time) => (
-                      <option key={time} value={time}>{timeLabel(time)}</option>
-                    ))}
+                    {endTimeOptions.map((time) => {
+                      const unavailable = endConflict(
+                        time,
+                        index,
+                        intervals,
+                        selectedWeekdays,
+                        occupiedSchedules
+                      );
+                      return (
+                        <option key={time} value={time} disabled={Boolean(unavailable)}>
+                          {timeLabel(time)}{unavailable ? " · No disponible" : ""}
+                        </option>
+                      );
+                    })}
                   </select>
                 </label>
                 {multipleIntervals ? (
@@ -197,19 +369,25 @@ export function ClassForm({
                     aria-label="Eliminar horario"
                     disabled={intervals.length === 1}
                     onClick={() =>
-                      setIntervals((current) => current.filter((_, itemIndex) => itemIndex !== index))
+                      setIntervals((current) =>
+                        current.filter((_, itemIndex) => itemIndex !== index)
+                      )
                     }
                     className="mb-1 grid size-10 place-items-center rounded-full border text-destructive disabled:opacity-30"
                   >
                     <Minus className="size-5" />
                   </button>
-                ) : <span />}
+                ) : (
+                  <span />
+                )}
               </div>
-              <p className={`mt-2 flex items-center gap-2 text-xs ${intervalDuration > 0 ? "text-muted-foreground" : "text-destructive"}`}>
+              <p
+                className={`mt-2 flex items-center gap-2 text-xs ${
+                  conflict ? "text-destructive" : "text-muted-foreground"
+                }`}
+              >
                 <Clock3 className="size-4" />
-                {intervalDuration > 0
-                  ? `Duración calculada: ${intervalDuration} min`
-                  : "La hora final debe ser posterior a la inicial."}
+                {conflict ?? `Duración calculada: ${intervalDuration} min`}
               </p>
             </div>
           );
