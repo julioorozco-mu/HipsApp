@@ -1,16 +1,15 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
   Clock3,
-  Pencil,
   Trash2,
   TriangleAlert,
 } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { deleteClass } from "@/app/actions/more";
@@ -113,49 +112,93 @@ function DeleteSubmitButton() {
 }
 
 function SwipeClassCard({ item }: { item: ClassItem }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const pointerStart = useRef<number | null>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const pointerStart = useRef<{ x: number; y: number } | null>(null);
   const deleteAction = deleteClass.bind(null, item.id);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function closeOutside(event: PointerEvent) {
+      if (cardRef.current && !cardRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+
+    function closeWithEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeWithEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", closeWithEscape);
+    };
+  }, [open]);
+
+  function openEditor() {
+    router.push(`/clases/${item.id}/editar`);
+  }
 
   return (
     <>
-      <div className="relative overflow-hidden rounded-2xl border bg-secondary">
-        <div className="absolute inset-y-0 right-0 z-10 grid w-40 grid-cols-2">
-          <Link
-            href={`/clases/${item.id}/editar`}
-            onClick={(event) => event.stopPropagation()}
-            className="flex flex-col items-center justify-center gap-1 bg-primary text-xs font-semibold text-primary-foreground"
-          >
-            <Pencil className="size-5" /> Editar
-          </Link>
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              setConfirming(true);
-            }}
-            className="flex flex-col items-center justify-center gap-1 bg-destructive text-xs font-semibold text-destructive-foreground"
-          >
-            <Trash2 className="size-5" /> Eliminar
-          </button>
-        </div>
+      <div
+        ref={cardRef}
+        className="relative overflow-hidden rounded-2xl border bg-destructive"
+      >
+        <button
+          type="button"
+          onClick={() => setConfirming(true)}
+          className="absolute inset-y-0 right-0 z-10 flex w-24 flex-col items-center justify-center gap-1 bg-destructive text-xs font-semibold text-destructive-foreground"
+        >
+          <Trash2 className="size-5" /> Eliminar
+        </button>
 
         <article
-          onPointerDown={(event) => {
-            if (!open) pointerStart.current = event.clientX;
+          role="link"
+          tabIndex={0}
+          aria-label={`Editar ${item.name}`}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              if (open) setOpen(false);
+              else openEditor();
+            }
           }}
-          onPointerUp={(event) => {
-            if (pointerStart.current === null) return;
-            const distance = event.clientX - pointerStart.current;
-            if (distance < -35) setOpen(true);
+          onBlur={(event) => {
+            if (!cardRef.current?.contains(event.relatedTarget as Node | null)) {
+              setOpen(false);
+            }
+          }}
+          onPointerDown={(event) => {
+            pointerStart.current = { x: event.clientX, y: event.clientY };
+          }}
+          onPointerCancel={() => {
             pointerStart.current = null;
           }}
-          style={{
-            pointerEvents: open ? "none" : "auto",
-            transform: open ? "translateX(-10rem)" : "translateX(0)",
+          onPointerUp={(event) => {
+            if (!pointerStart.current) return;
+            const distanceX = event.clientX - pointerStart.current.x;
+            const distanceY = event.clientY - pointerStart.current.y;
+            pointerStart.current = null;
+
+            if (Math.abs(distanceY) > Math.abs(distanceX)) return;
+            if (distanceX < -35) {
+              setOpen(true);
+              return;
+            }
+            if (distanceX > 25 || open) {
+              setOpen(false);
+              return;
+            }
+            if (Math.abs(distanceX) < 8) openEditor();
           }}
-          className="relative z-20 bg-card p-4 transition-transform duration-200 touch-pan-y"
+          style={{ transform: open ? "translateX(-6rem)" : "translateX(0)" }}
+          className="relative z-20 cursor-pointer bg-card p-4 transition-transform duration-200 touch-pan-y focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-primary"
         >
           <div className="flex items-start gap-3">
             <span className="grid size-12 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
@@ -174,7 +217,7 @@ function SwipeClassCard({ item }: { item: ClassItem }) {
               </p>
               <p className="mt-2 text-sm">Cupo máximo: {item.capacity}</p>
               <p className="mt-2 text-xs text-muted-foreground">
-                Desliza a la izquierda para editar o eliminar.
+                Toca para editar · Desliza a la izquierda para eliminar.
               </p>
             </div>
           </div>
