@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
+import { Check, CheckCircle2, Clock3, Search } from "lucide-react";
 import { useMemo, useState, useTransition } from "react";
-import { Check, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { saveAttendance } from "@/app/actions/attendance";
@@ -23,6 +24,8 @@ export type AttendanceStudent = {
   } | null;
 };
 
+type AttendanceMode = "open" | "saved" | "disabled";
+
 const avatarStyles = [
   "bg-[oklch(0.66_0.17_155)]",
   "bg-[oklch(0.62_0.23_295)]",
@@ -30,17 +33,28 @@ const avatarStyles = [
 ] as const;
 
 export function AttendanceList({
+  canFinalize,
+  initialPresentIds,
+  mode,
   sessionId,
   students,
+  unavailableMessage,
 }: {
+  canFinalize: boolean;
+  initialPresentIds: string[];
+  mode: AttendanceMode;
   sessionId: string | null;
   students: AttendanceStudent[];
+  unavailableMessage: string | null;
 }) {
   const [query, setQuery] = useState("");
-  const [presentIds, setPresentIds] = useState<Set<string>>(() => new Set());
+  const [presentIds, setPresentIds] = useState<Set<string>>(
+    () => new Set(initialPresentIds)
+  );
   const [message, setMessage] = useState("");
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const editable = mode === "open";
 
   const filteredStudents = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -51,6 +65,7 @@ export function AttendanceList({
   }, [students, query]);
 
   function togglePresent(studentId: string) {
+    if (!editable) return;
     setPresentIds((current) => {
       const next = new Set(current);
       if (next.has(studentId)) next.delete(studentId);
@@ -60,6 +75,7 @@ export function AttendanceList({
   }
 
   function handleSave() {
+    if (!editable) return;
     startTransition(async () => {
       setMessage("");
       const result = await saveAttendance(sessionId ?? "", [...presentIds]);
@@ -122,12 +138,15 @@ export function AttendanceList({
                 <button
                   type="button"
                   onClick={() => togglePresent(student.id)}
+                  disabled={!editable}
                   aria-pressed={selected}
                   className={cn(
-                    "flex min-h-11 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
+                    "flex min-h-11 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-default",
                     selected
                       ? "border-[oklch(0.72_0.16_145)] bg-[oklch(0.9_0.13_130)] text-[oklch(0.3_0.08_130)]"
-                      : "border-border bg-card hover:bg-secondary active:bg-accent"
+                      : editable
+                        ? "border-border bg-card hover:bg-secondary active:bg-accent"
+                        : "border-border bg-secondary/40 text-muted-foreground"
                   )}
                 >
                   {selected ? <Check className="size-4" /> : null}
@@ -145,21 +164,54 @@ export function AttendanceList({
             {message}
           </p>
         ) : null}
-        <Button
-          type="button"
-          onClick={handleSave}
-          disabled={
-            isPending ||
-            !sessionId ||
-            students.length === 0 ||
-            presentIds.size === 0
-          }
-          className="h-14 w-full rounded-xl bg-[oklch(0.52_0.23_293)] text-base font-semibold text-primary-foreground hover:bg-[oklch(0.47_0.21_293)]"
-        >
-          {isPending
-            ? "Guardando..."
-            : `Guardar asistencia${presentIds.size ? ` (${presentIds.size})` : ""}`}
-        </Button>
+
+        {mode === "saved" ? (
+          <div className="grid gap-3">
+            <div className="flex items-center gap-3 rounded-2xl bg-[oklch(0.94_0.07_145)] px-4 py-3 text-[oklch(0.34_0.09_145)]">
+              <CheckCircle2 className="size-6 shrink-0" />
+              <div>
+                <p className="font-semibold">Asistencia guardada</p>
+                <p className="text-xs opacity-80">
+                  {presentIds.size} {presentIds.size === 1 ? "alumno presente" : "alumnos presentes"}.
+                </p>
+              </div>
+            </div>
+            {canFinalize && sessionId ? (
+              <Link
+                href={`/asistencia/finalizar?session=${sessionId}`}
+                className="flex min-h-14 items-center justify-center rounded-xl bg-primary px-5 text-base font-semibold text-primary-foreground transition-colors hover:bg-primary/85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              >
+                Continuar a Finalizar clase
+              </Link>
+            ) : (
+              <div className="flex min-h-14 items-center justify-center gap-2 rounded-xl bg-secondary px-4 text-center text-sm font-medium text-muted-foreground">
+                <Clock3 className="size-5 shrink-0" />
+                {unavailableMessage ?? "La clase todavía no puede finalizarse."}
+              </div>
+            )}
+          </div>
+        ) : mode === "disabled" ? (
+          <div className="flex min-h-14 items-center justify-center gap-2 rounded-xl bg-secondary px-4 text-center text-sm font-medium text-muted-foreground">
+            <Clock3 className="size-5 shrink-0" />
+            {unavailableMessage ?? "La asistencia no está disponible para esta clase."}
+          </div>
+        ) : (
+          <Button
+            type="button"
+            onClick={handleSave}
+            disabled={
+              isPending ||
+              !sessionId ||
+              students.length === 0 ||
+              presentIds.size === 0
+            }
+            className="h-14 w-full rounded-xl bg-[oklch(0.52_0.23_293)] text-base font-semibold text-primary-foreground hover:bg-[oklch(0.47_0.21_293)]"
+          >
+            {isPending
+              ? "Guardando..."
+              : `Guardar asistencia${presentIds.size ? ` (${presentIds.size})` : ""}`}
+          </Button>
+        )}
       </div>
     </div>
   );

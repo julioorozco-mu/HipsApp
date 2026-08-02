@@ -92,7 +92,7 @@ export function StudentList({ students }: { students: StudentListItem[] }) {
         ))}
       </div>
 
-      <div className="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-2xl border bg-card">
+      <div className="mt-3 max-h-[calc(100dvh-21rem)] overflow-y-auto overscroll-contain rounded-2xl border bg-card sm:max-h-[calc(100dvh-24rem)]">
         {visibleStudents.length ? (
           <ul className="divide-y">
             {visibleStudents.map((student, index) => (

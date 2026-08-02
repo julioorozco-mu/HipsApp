@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock3, Minus, Plus } from "lucide-react";
+import { Clock3, Minus, Music2, Plus } from "lucide-react";
 import { useState } from "react";
 
 import type { MoreActionState } from "@/app/actions/more";
@@ -18,14 +18,22 @@ const days = [
 
 type Interval = { end: string; start: string };
 
+export type ClassPlaylistOption = {
+  id: string;
+  name: string;
+  trackCount: number;
+};
+
 type ClassFormProps = {
   action: (state: MoreActionState, formData: FormData) => Promise<MoreActionState>;
   defaultCapacity?: number;
   defaultIntervals?: Interval[];
   defaultName?: string;
+  defaultPlaylistId?: string | null;
   defaultWeekdays?: number[];
   multipleIntervals?: boolean;
   multipleWeekdays?: boolean;
+  playlists?: ClassPlaylistOption[];
   submitLabel: string;
 };
 
@@ -63,9 +71,11 @@ export function ClassForm({
   defaultCapacity = 25,
   defaultIntervals = [{ start: "09:00", end: "10:00" }],
   defaultName = "",
+  defaultPlaylistId = null,
   defaultWeekdays = [],
   multipleIntervals = true,
   multipleWeekdays = true,
+  playlists = [],
   submitLabel,
 }: ClassFormProps) {
   const [intervals, setIntervals] = useState<Interval[]>(defaultIntervals);
@@ -91,6 +101,28 @@ export function ClassForm({
           placeholder="Zumba prueba"
           required
         />
+      </label>
+
+      <label className="grid gap-2 text-sm font-semibold">
+        <span className="flex items-center gap-2">
+          <Music2 className="size-4 text-primary" />
+          Playlist predeterminada
+        </span>
+        <select
+          className={fieldClass}
+          name="playlist_id"
+          defaultValue={defaultPlaylistId ?? ""}
+        >
+          <option value="">Sin playlist asignada</option>
+          {playlists.map((playlist) => (
+            <option key={playlist.id} value={playlist.id}>
+              {playlist.name} · {playlist.trackCount} canciones
+            </option>
+          ))}
+        </select>
+        <span className="text-xs font-normal text-muted-foreground">
+          Se propondrá al finalizar cada sesión. Puedes cambiarla solo para ese día.
+        </span>
       </label>
 
       <fieldset className="grid gap-2">
