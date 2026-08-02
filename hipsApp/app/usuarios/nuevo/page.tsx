@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { AppNav } from "@/components/app-nav";
 import { UserForm } from "@/components/features/users/user-form";
+import { normalizeRole } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function NewUserPage() {
@@ -18,7 +19,7 @@ export default async function NewUserPage() {
     .select("role")
     .eq("id", user.id)
     .maybeSingle();
-  if (profile?.role !== "superadmin") redirect("/");
+  if (normalizeRole(profile?.role) !== "superadmin") redirect("/");
 
   return (
     <main className="min-h-dvh bg-[oklch(0.965_0.018_300)] p-2 sm:p-5">
