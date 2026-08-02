@@ -129,8 +129,8 @@ export default async function AttendancePage({
   return (
     <main className="min-h-dvh bg-[oklch(0.965_0.018_300)] p-2 sm:p-5">
       <div className="mx-auto flex min-h-[calc(100dvh-1rem)] w-full max-w-lg flex-col overflow-hidden rounded-[2.5rem] bg-card shadow-[0_18px_50px_oklch(0.25_0.04_300/0.14)] sm:min-h-[calc(100dvh-2.5rem)]">
-        <div className="flex flex-1 flex-col px-4 pt-6 pb-5 sm:px-7 sm:pt-10">
-          <header className="flex items-start justify-between gap-4">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pt-6 pb-5 sm:px-7 sm:pt-10">
+          <header className="flex shrink-0 items-start justify-between gap-4">
             <div>
               <h1 className="text-[2rem] leading-tight font-bold tracking-[-0.04em] sm:text-4xl">
                 Asistencia de hoy
@@ -153,7 +153,7 @@ export default async function AttendancePage({
           {sessions.length > 1 ? (
             <nav
               aria-label="Clases programadas para hoy"
-              className="mt-4 flex gap-2 overflow-x-auto pb-1"
+              className="mt-4 flex shrink-0 gap-2 overflow-x-auto pb-1"
             >
               {sessions.map((item) => {
                 const active = item.id === session?.id;
@@ -175,7 +175,11 @@ export default async function AttendancePage({
           ) : null}
 
           {user ? (
-            <AttendanceList sessionId={session?.id ?? null} students={students} />
+            <AttendanceList
+              key={session?.id ?? "sin-clase"}
+              sessionId={session?.id ?? null}
+              students={students}
+            />
           ) : (
             <p className="mt-10 rounded-2xl bg-secondary px-5 py-8 text-center text-sm text-muted-foreground">
               Inicia sesión para consultar la clase y tomar asistencia.

@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { Flame, Search } from "lucide-react";
 import Link from "next/link";
 
-import { AddStudentLink } from "@/components/features/students/add-student-link";
 import { Input } from "@/components/ui/input";
 
 export type StudentListItem = {
@@ -62,8 +61,8 @@ export function StudentList({ students }: { students: StudentListItem[] }) {
   }, [filter, query, students]);
 
   return (
-    <div className="relative flex flex-1 flex-col">
-      <div className="relative mt-4">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="relative mt-4 shrink-0">
         <Search className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground" />
         <Input
           type="search"
@@ -75,7 +74,7 @@ export function StudentList({ students }: { students: StudentListItem[] }) {
         />
       </div>
 
-      <div className="mt-3 flex gap-2" aria-label="Filtrar alumnos">
+      <div className="mt-3 flex shrink-0 gap-2" aria-label="Filtrar alumnos">
         {filters.map(({ value, label }) => (
           <button
             key={value}
@@ -93,7 +92,7 @@ export function StudentList({ students }: { students: StudentListItem[] }) {
         ))}
       </div>
 
-      <div className="mt-3 overflow-hidden rounded-2xl border bg-card">
+      <div className="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-2xl border bg-card">
         {visibleStudents.length ? (
           <ul className="divide-y">
             {visibleStudents.map((student, index) => (
@@ -138,10 +137,6 @@ export function StudentList({ students }: { students: StudentListItem[] }) {
             {students.length ? "No hay alumnos que coincidan." : "Aún no hay alumnos registrados."}
           </p>
         )}
-      </div>
-
-      <div className="sticky right-3 bottom-3 mt-auto flex justify-end pt-4">
-        <AddStudentLink />
       </div>
     </div>
   );
