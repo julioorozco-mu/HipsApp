@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Check, CheckCircle2, Clock3, Search } from "lucide-react";
+import {
+  CalendarPlus,
+  Check,
+  CheckCircle2,
+  Clock3,
+  Plus,
+  Search,
+} from "lucide-react";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
@@ -85,6 +92,32 @@ export function AttendanceList({
       }
       router.push(`/asistencia/finalizar?session=${sessionId}`);
     });
+  }
+
+  if (!sessionId) {
+    return (
+      <div className="mt-8 flex flex-1 items-start justify-center">
+        <section className="w-full rounded-3xl border border-dashed border-primary/30 bg-primary/[0.035] px-6 py-10 text-center">
+          <span className="mx-auto grid size-16 place-items-center rounded-full bg-primary/10 text-primary">
+            <CalendarPlus className="size-8" />
+          </span>
+          <h2 className="mt-4 text-xl font-bold">No hay clases programadas para hoy</h2>
+          <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-muted-foreground">
+            Crea una clase y su horario para habilitar el registro de asistencia.
+          </p>
+          <Link
+            href="/clases/nueva"
+            className="mt-6 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-6 font-semibold text-primary-foreground transition-colors hover:bg-primary/85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          >
+            <Plus className="size-5" />
+            Crear clase
+          </Link>
+          {unavailableMessage && unavailableMessage !== "No hay clases programadas para hoy." ? (
+            <p className="mt-3 text-xs text-muted-foreground">{unavailableMessage}</p>
+          ) : null}
+        </section>
+      </div>
+    );
   }
 
   return (
@@ -176,7 +209,7 @@ export function AttendanceList({
                 </p>
               </div>
             </div>
-            {canFinalize && sessionId ? (
+            {canFinalize ? (
               <Link
                 href={`/asistencia/finalizar?session=${sessionId}`}
                 className="flex min-h-14 items-center justify-center rounded-xl bg-primary px-5 text-base font-semibold text-primary-foreground transition-colors hover:bg-primary/85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
@@ -199,12 +232,7 @@ export function AttendanceList({
           <Button
             type="button"
             onClick={handleSave}
-            disabled={
-              isPending ||
-              !sessionId ||
-              students.length === 0 ||
-              presentIds.size === 0
-            }
+            disabled={isPending || students.length === 0 || presentIds.size === 0}
             className="h-14 w-full rounded-xl bg-[oklch(0.52_0.23_293)] text-base font-semibold text-primary-foreground hover:bg-[oklch(0.47_0.21_293)]"
           >
             {isPending
