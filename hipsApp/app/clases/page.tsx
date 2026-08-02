@@ -2,7 +2,10 @@ import Link from "next/link";
 import { Plus } from "lucide-react";
 import { redirect } from "next/navigation";
 
-import { ClassesClient, type ClassItem } from "@/components/features/more/classes-client";
+import {
+  ClassesClient,
+  type ClassItem,
+} from "@/components/features/more/classes-client";
 import { MoreShell } from "@/components/features/more/more-shell";
 import { canManageOperations, normalizeRole } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
@@ -15,6 +18,17 @@ type ClassRow = {
   start_time: string;
   weekday: number;
 };
+
+function mexicoDate() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "America/Mexico_City",
+    year: "numeric",
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
 
 export default async function ClassesPage() {
   const supabase = await createClient();
@@ -45,11 +59,11 @@ export default async function ClassesPage() {
       menuHref="/clases/nueva"
       menuLabel="Crear nueva clase"
     >
-      <ClassesClient classes={classes} />
+      <ClassesClient classes={classes} today={mexicoDate()} />
       <Link
         href="/clases/nueva"
         aria-label="Nueva clase"
-        className="fixed right-6 bottom-28 grid size-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-xl sm:right-[calc(50%-15rem)]"
+        className="fixed right-6 bottom-28 z-50 grid size-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-xl sm:right-[calc(50%-15rem)]"
       >
         <Plus className="size-7" />
       </Link>
