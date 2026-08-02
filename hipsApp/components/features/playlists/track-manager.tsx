@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { ArrowDown, ArrowUp, LoaderCircle, Minus, Plus, Search } from "lucide-react";
+import { useActionState, useRef, useState } from "react";
+import { ArrowDown, ArrowUp, CheckCircle2, LoaderCircle, Minus, Plus, Search } from "lucide-react";
 
 import type { PlaylistActionState } from "@/app/actions/playlists";
 import type { SpotifyTrack } from "@/lib/spotify/types";
@@ -23,7 +23,15 @@ export function TrackManager({
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [state, formAction, pending] = useActionState(action, { error: null });
+
+  function notify(message: string) {
+    setNotice(message);
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    noticeTimer.current = setTimeout(() => setNotice(null), 2200);
+  }
 
   async function search(event: React.FormEvent) {
     event.preventDefault();
@@ -32,14 +40,25 @@ export function TrackManager({
     setSearchError(null);
     try {
       const response = await fetch(`/api/spotify/search?q=${encodeURIComponent(query.trim())}`);
-      const data = (await response.json()) as { error?: string; tracks: SpotifyTrack[] };
-      if (!response.ok) throw new Error(data.error ?? "No se pudo buscar.");
-      setResults(data.tracks);
+      const text = await response.text();
+      const data = text ? (JSON.parse(text) as { error?: string; tracks: SpotifyTrack[] }) : null;
+      if (!response.ok) throw new Error(data?.error ?? "No se pudo buscar.");
+      setResults(data?.tracks ?? []);
     } catch (error) {
       setSearchError(error instanceof Error ? error.message : "No se pudo buscar.");
     } finally {
       setSearching(false);
     }
+  }
+
+  function addTrack(track: SpotifyTrack) {
+    setTracks((current) => [...current, track]);
+    notify(`“${track.title}” se agregó a la playlist.`);
+  }
+
+  function removeTrack(index: number, track: SpotifyTrack) {
+    setTracks((current) => current.filter((_, itemIndex) => itemIndex !== index));
+    notify(`“${track.title}” se eliminó de la playlist.`);
   }
 
   function move(index: number, direction: -1 | 1) {
@@ -54,6 +73,17 @@ export function TrackManager({
 
   return (
     <div className="flex flex-1 flex-col">
+      {notice ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed top-4 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 animate-in items-center gap-2 rounded-xl border border-[#14a44d]/30 bg-white px-4 py-3 text-sm font-medium shadow-lg fade-in slide-in-from-top-2"
+        >
+          <CheckCircle2 className="size-5 shrink-0 text-[#14a44d]" />
+          <span className="min-w-0">{notice}</span>
+        </div>
+      ) : null}
+
       <form onSubmit={search} className="flex gap-2">
         <label className="relative flex-1">
           <Search className="absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground" />
@@ -86,7 +116,7 @@ export function TrackManager({
                   <button
                     type="button"
                     disabled={added}
-                    onClick={() => setTracks((current) => [...current, track])}
+                    onClick={() => addTrack(track)}
                     aria-label={`Agregar ${track.title}`}
                     className="grid size-9 place-items-center rounded-full border border-[#14a44d] text-[#14a44d] disabled:opacity-35"
                   >
@@ -110,7 +140,7 @@ export function TrackManager({
               </span>
               <button type="button" onClick={() => move(index, -1)} disabled={index === 0} aria-label="Subir canción" className="grid size-8 place-items-center disabled:opacity-25"><ArrowUp className="size-4" /></button>
               <button type="button" onClick={() => move(index, 1)} disabled={index === tracks.length - 1} aria-label="Bajar canción" className="grid size-8 place-items-center disabled:opacity-25"><ArrowDown className="size-4" /></button>
-              <button type="button" onClick={() => setTracks((current) => current.filter((_, itemIndex) => itemIndex !== index))} aria-label={`Quitar ${track.title}`} className="grid size-8 place-items-center text-destructive"><Minus className="size-5" /></button>
+              <button type="button" onClick={() => removeTrack(index, track)} aria-label={`Quitar ${track.title}`} className="grid size-8 place-items-center text-destructive"><Minus className="size-5" /></button>
             </div>
           ))}
           {!tracks.length ? (
