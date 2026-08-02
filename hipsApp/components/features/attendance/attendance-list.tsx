@@ -1,13 +1,10 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Search } from "lucide-react";
+import { Check, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-import {
-  saveAttendance,
-  type AttendanceStatus,
-} from "@/app/actions/attendance";
+import { saveAttendance } from "@/app/actions/attendance";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -40,9 +37,7 @@ export function AttendanceList({
   students: AttendanceStudent[];
 }) {
   const [query, setQuery] = useState("");
-  const [selections, setSelections] = useState<
-    Record<string, AttendanceStatus>
-  >({});
+  const [presentIds, setPresentIds] = useState<Set<string>>(() => new Set());
   const [message, setMessage] = useState("");
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -55,16 +50,19 @@ export function AttendanceList({
     );
   }, [students, query]);
 
+  function togglePresent(studentId: string) {
+    setPresentIds((current) => {
+      const next = new Set(current);
+      if (next.has(studentId)) next.delete(studentId);
+      else next.add(studentId);
+      return next;
+    });
+  }
+
   function handleSave() {
     startTransition(async () => {
       setMessage("");
-      const result = await saveAttendance(
-        sessionId ?? "",
-        students.map((student) => ({
-          studentId: student.id,
-          status: selections[student.id],
-        }))
-      );
+      const result = await saveAttendance(sessionId ?? "", [...presentIds]);
       if (result.error) {
         setMessage(result.error);
         return;
@@ -74,8 +72,8 @@ export function AttendanceList({
   }
 
   return (
-    <div className="mt-5 flex flex-1 flex-col">
-      <div className="relative">
+    <div className="mt-5 flex min-h-0 flex-1 flex-col">
+      <div className="relative shrink-0">
         <Search className="pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-muted-foreground" />
         <Input
           type="search"
@@ -94,7 +92,7 @@ export function AttendanceList({
             : `No encontramos alumnos con "${query}".`}
         </p>
       ) : (
-        <ul className="mt-4 divide-y divide-border overflow-hidden rounded-2xl border border-border">
+        <ul className="mt-4 min-h-0 flex-1 divide-y divide-border overflow-y-auto overscroll-contain rounded-2xl border border-border">
           {filteredStudents.map((student, index) => {
             const initials = student.nombre
               .split(/\s+/)
@@ -102,12 +100,12 @@ export function AttendanceList({
               .map((part) => part[0])
               .join("")
               .toUpperCase();
-            const selected = selections[student.id];
+            const selected = presentIds.has(student.id);
 
             return (
               <li
                 key={student.id}
-                className="grid min-h-20 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-3 py-3"
+                className="grid min-h-20 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-3 py-3"
               >
                 <span
                   aria-hidden="true"
@@ -118,62 +116,32 @@ export function AttendanceList({
                 >
                   {initials}
                 </span>
-                <span className="truncate text-xs font-semibold">
+                <span className="truncate text-sm font-semibold">
                   {student.nombre}
                 </span>
-                <span className="flex gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSelections((current) => ({
-                        ...current,
-                        [student.id]: "presente",
-                      }))
-                    }
-                    aria-pressed={selected === "presente"}
-                    className={cn(
-                      "min-h-11 rounded-xl border px-2.5 text-[0.7rem] font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
-                      selected === "presente"
-                        ? "border-[oklch(0.82_0.13_130)] bg-[oklch(0.9_0.13_130)] text-[oklch(0.3_0.08_130)]"
-                        : "border-border bg-card hover:bg-secondary active:bg-accent"
-                    )}
-                  >
-                    Presente
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSelections((current) => ({
-                        ...current,
-                        [student.id]: "ausente",
-                      }))
-                    }
-                    aria-pressed={selected === "ausente"}
-                    className={cn(
-                      "min-h-11 rounded-xl border px-2.5 text-[0.7rem] font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
-                      selected === "ausente"
-                        ? "border-[oklch(0.75_0.17_340)] bg-[oklch(0.59_0.24_340)] text-[oklch(0.99_0.005_340)]"
-                        : "border-border bg-card hover:bg-secondary active:bg-accent"
-                    )}
-                  >
-                    Ausente
-                  </button>
-                </span>
+                <button
+                  type="button"
+                  onClick={() => togglePresent(student.id)}
+                  aria-pressed={selected}
+                  className={cn(
+                    "flex min-h-11 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
+                    selected
+                      ? "border-[oklch(0.72_0.16_145)] bg-[oklch(0.9_0.13_130)] text-[oklch(0.3_0.08_130)]"
+                      : "border-border bg-card hover:bg-secondary active:bg-accent"
+                  )}
+                >
+                  {selected ? <Check className="size-4" /> : null}
+                  Presente
+                </button>
               </li>
             );
           })}
         </ul>
       )}
 
-      <div className="mt-auto pt-4">
+      <div className="shrink-0 pt-4">
         {message ? (
-          <p
-            role="status"
-            className={cn(
-              "mb-2 text-center text-sm font-medium",
-              "text-destructive"
-            )}
-          >
+          <p role="status" className="mb-2 text-center text-sm font-medium text-destructive">
             {message}
           </p>
         ) : null}
@@ -184,11 +152,13 @@ export function AttendanceList({
             isPending ||
             !sessionId ||
             students.length === 0 ||
-            Object.keys(selections).length !== students.length
+            presentIds.size === 0
           }
           className="h-14 w-full rounded-xl bg-[oklch(0.52_0.23_293)] text-base font-semibold text-primary-foreground hover:bg-[oklch(0.47_0.21_293)]"
         >
-          {isPending ? "Guardando..." : "Guardar asistencia"}
+          {isPending
+            ? "Guardando..."
+            : `Guardar asistencia${presentIds.size ? ` (${presentIds.size})` : ""}`}
         </Button>
       </div>
     </div>
