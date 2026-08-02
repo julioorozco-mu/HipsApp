@@ -4,36 +4,20 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 
-export type AttendanceStatus = "presente" | "ausente";
-
-type AttendanceSelection = {
-  studentId: string;
-  status: AttendanceStatus | undefined;
-};
-
 type SaveAttendanceResult = {
   error: string | null;
 };
 
 export async function saveAttendance(
   sessionId: string,
-  selections: AttendanceSelection[]
+  presentStudentIds: string[]
 ): Promise<SaveAttendanceResult> {
-  if (
-    !sessionId ||
-    selections.length === 0 ||
-    selections.some(({ studentId, status }) => !studentId || !status) ||
-    new Set(selections.map(({ studentId }) => studentId)).size !==
-      selections.length
-  ) {
-    return { error: "Marca presente o ausente para cada alumno." };
+  const present = [...new Set(presentStudentIds.filter(Boolean))];
+
+  if (!sessionId || present.length === 0 || present.length !== presentStudentIds.length) {
+    return { error: "Marca al menos un alumno como presente." };
   }
 
-  const present: string[] = [];
-  const absent: string[] = [];
-  for (const { studentId, status } of selections) {
-    (status === "presente" ? present : absent).push(studentId);
-  }
   const supabase = await createClient();
   const {
     data: { user },
@@ -44,7 +28,7 @@ export async function saveAttendance(
   }
 
   const { error } = await supabase.rpc("save_attendance", {
-    p_absent: absent,
+    p_absent: [],
     p_present: present,
     p_session_id: sessionId,
   });
