@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { normalizeRole } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
 
 export type CreateUserState = { error: string | null };
@@ -44,7 +45,7 @@ export async function createManagedUser(
   if (password.length < 8) {
     return { error: "La contraseña debe tener al menos 8 caracteres." };
   }
-  if (!['admin', 'alumno'].includes(role)) {
+  if (!["admin", "alumno"].includes(role)) {
     return { error: "Selecciona Administrador o Alumno." };
   }
   if (role === "alumno" && !/^\+?[0-9]{8,15}$/.test(phone)) {
@@ -62,7 +63,7 @@ export async function createManagedUser(
     .select("role")
     .eq("id", user.id)
     .maybeSingle();
-  if (profile?.role !== "superadmin") {
+  if (normalizeRole(profile?.role) !== "superadmin") {
     return { error: "Solo el Superadmin puede crear usuarios." };
   }
 
