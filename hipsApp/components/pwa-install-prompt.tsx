@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleCheckBig, Download, Share, Smartphone, X } from "lucide-react";
+import { Download, Share, X } from "lucide-react";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
 type BeforeInstallPromptEvent = Event & {
@@ -19,59 +19,15 @@ function isIosDevice() {
 
 function isStandalone() {
   return (
-    window.matchMedia(
-      "(display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui)"
-    ).matches ||
+    window.matchMedia("(display-mode: standalone)").matches ||
     (navigator as Navigator & { standalone?: boolean }).standalone === true
   );
 }
 
 function subscribeToDisplayMode(callback: () => void) {
-  const media = window.matchMedia(
-    "(display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui)"
-  );
+  const media = window.matchMedia("(display-mode: standalone)");
   media.addEventListener("change", callback);
   return () => media.removeEventListener("change", callback);
-}
-
-export function PwaStatus() {
-  const installed = useSyncExternalStore(
-    subscribeToDisplayMode,
-    isStandalone,
-    () => false
-  );
-  const Icon = installed ? CircleCheckBig : Smartphone;
-
-  return (
-    <section
-      aria-label={`PWA ${installed ? "instalada" : "no instalada"}`}
-      className={`mt-7 flex min-h-24 items-center gap-4 rounded-3xl px-5 py-4 ${
-        installed
-          ? "bg-[oklch(0.94_0.08_125)]"
-          : "bg-[oklch(0.95_0.035_300)]"
-      }`}
-    >
-      <span
-        className={`grid size-11 shrink-0 place-items-center rounded-full ${
-          installed
-            ? "bg-[oklch(0.5_0.16_150)] text-[oklch(0.985_0.006_150)]"
-            : "bg-primary/10 text-primary"
-        }`}
-      >
-        <Icon className="size-6" />
-      </span>
-      <div>
-        <h2 className="text-lg font-semibold">
-          PWA {installed ? "instalada" : "no instalada"}
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          {installed
-            ? "Accede rápido desde tu pantalla de inicio"
-            : "Instálala desde el aviso del navegador"}
-        </p>
-      </div>
-    </section>
-  );
 }
 
 export function PwaInstallPrompt() {
