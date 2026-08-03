@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   title: "HipsApp",
   description:
     "Gestión de asistencias, membresías, clases y playlists para Hipsdance.",
-  manifest: "/manifest.json",
+  manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
