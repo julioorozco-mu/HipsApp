@@ -104,9 +104,7 @@ function startConflict(
 
   const occupied = occupiedSchedules.find(
     (schedule) =>
-      selectedDays.includes(schedule.weekday) &&
-      minutes(candidate.start) <= minutes(schedule.end) &&
-      minutes(candidate.end) > minutes(schedule.start)
+      selectedDays.includes(schedule.weekday) && overlaps(candidate, schedule)
   );
   if (occupied) return occupied.name;
 
