@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="es-MX">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#7c3aed" />
+    <title>HipsApp sin conexión</title>
+    <style>
+      :root { color-scheme: light; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f4efff; color: #171220; padding: 24px; }
+      main { width: min(100%, 420px); border-radius: 32px; background: white; padding: 40px 28px; text-align: center; box-shadow: 0 18px 50px rgba(41, 24, 73, .12); }
+      img { width: 88px; height: 88px; border-radius: 24px; }
+      h1 { margin: 24px 0 8px; font-size: 28px; }
+      p { margin: 0 0 28px; color: #6f6878; line-height: 1.5; }
+      button { width: 100%; min-height: 52px; border: 0; border-radius: 16px; background: #7c3aed; color: white; font: inherit; font-weight: 700; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="/icons/icon-192.png" alt="" />
+      <h1>Sin conexión</h1>
+      <p>HipsApp necesita internet para mostrar información actualizada.</p>
+      <button type="button" onclick="location.reload()">Reintentar</button>
+    </main>
+  </body>
+</html>

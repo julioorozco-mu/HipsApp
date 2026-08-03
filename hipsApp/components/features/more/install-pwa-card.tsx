@@ -27,7 +27,7 @@ export function InstallPwaCard() {
 
     if (!canInstall) {
       setMessage(
-        "Abre HipsApp en Chrome y actualiza esta página. Espera a que se habilite el instalador; no uses “Agregar a pantalla principal”, porque puede crear solo un acceso directo."
+        "Chrome todavía no habilita la instalación como aplicación. Actualiza esta página una vez y espera unos segundos. No uses “Agregar a pantalla principal” si muestra un widget 1 × 1."
       );
       return;
     }
@@ -35,9 +35,9 @@ export function InstallPwaCard() {
     const outcome = await install();
     setMessage(
       outcome === "accepted"
-        ? "Instalación aceptada. HipsApp se abrirá como una aplicación independiente."
+        ? "Solicitud enviada a Chrome. Espera a que Android termine de instalar HipsApp. Si el cuadro dice “widget 1 × 1”, toca “No, gracias”: ese flujo solo crea un acceso directo."
         : outcome === "dismissed"
-          ? "La instalación fue cancelada. Puedes intentarlo nuevamente cuando el navegador vuelva a habilitarla."
+          ? "La instalación fue cancelada. Puedes intentarlo nuevamente cuando Chrome vuelva a habilitar el instalador."
           : "El instalador todavía no está disponible. Actualiza esta página en Chrome."
     );
   }
@@ -51,7 +51,7 @@ export function InstallPwaCard() {
         : canInstall
           ? "Instalar HipsApp"
           : ready
-            ? "Revisar instalación"
+            ? "Comprobar instalador"
             : "Preparando instalación…";
 
   return (
@@ -63,14 +63,14 @@ export function InstallPwaCard() {
         Instala HipsApp en tu dispositivo
       </h2>
       <p className="mt-2 text-muted-foreground">
-        Usa el instalador nativo para abrirla sin la interfaz del navegador.
+        La instalación correcta aparece en el cajón de aplicaciones y abre sin la barra de Chrome.
       </p>
 
       <div className="mt-7 grid gap-3 text-left">
         <Feature
           icon={Download}
           title="Aplicación independiente"
-          text="Se instala con su propio icono, no como acceso directo"
+          text="Chrome instala una WebAPK; no aceptes el cuadro de widget 1 × 1"
         />
         <Feature
           icon={Clock3}
