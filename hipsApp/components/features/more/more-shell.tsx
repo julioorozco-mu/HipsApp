@@ -39,8 +39,9 @@ export function MoreShell({
           ) : <span />}
         </header>
         <div className="flex flex-1 flex-col px-5 pt-6 pb-4 sm:px-8">{children}</div>
-        <AppNav active="/mas" />
+        <AppNav />
       </div>
     </main>
   );
 }
+

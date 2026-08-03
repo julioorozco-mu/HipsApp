@@ -3,7 +3,7 @@
   "name": "HipsApp",
   "short_name": "HipsApp",
   "description": "Gestión de asistencias, membresías, clases y playlists para Hipsdance.",
-  "start_url": "/?source=pwa",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui"],

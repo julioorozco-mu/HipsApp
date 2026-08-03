@@ -1,4 +1,8 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useRole } from "@/components/role-provider";
 import {
   House,
   Menu,
@@ -7,19 +11,21 @@ import {
   UsersRound,
 } from "lucide-react";
 
-import { normalizeRole } from "@/lib/roles";
-import { createClient } from "@/lib/supabase/server";
-
-export async function AppNav({ active }: { active: string }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const { data: profile } = user
-    ? await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle()
-    : { data: null };
-  const role = normalizeRole(profile?.role);
+export function AppNav() {
+  const pathname = usePathname();
+  const role = useRole();
+  // El tab de inicio solo está activo si es exactamente "/". Los demás, si empiezan con el prefijo
+  const getActiveTab = () => {
+    if (pathname === "/") return "/";
+    if (pathname.startsWith("/usuarios") || pathname.startsWith("/alumnos")) {
+      return role === "superadmin" ? "/usuarios" : "/alumnos";
+    }
+    if (pathname.startsWith("/asistencia")) return "/asistencia";
+    if (pathname.startsWith("/mensajes")) return "/mensajes";
+    if (pathname.startsWith("/mas") || pathname.startsWith("/clases") || pathname.startsWith("/playlists") || pathname.startsWith("/plantillas") || pathname.startsWith("/configuracion") || pathname.startsWith("/perfil")) return "/mas";
+    return "";
+  };
+  const active = getActiveTab();
   const peopleItem =
     role === "superadmin"
       ? { label: "Usuarios", href: "/usuarios", icon: UsersRound }

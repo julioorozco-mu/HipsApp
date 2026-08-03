@@ -47,8 +47,9 @@ export function PlaylistShell({
           </header>
           <div className="mt-5 flex flex-1 flex-col">{children}</div>
         </div>
-        <AppNav active="/mas" />
+        <AppNav />
       </div>
     </main>
   );
 }
+
