@@ -9,6 +9,7 @@ import {
 
 import { AppNav } from "@/components/app-nav";
 import { LogoutDialog } from "@/components/features/more/logout-dialog";
+import { PwaStatus } from "@/components/pwa-install-prompt";
 import { canManageOperations, normalizeRole, roleLabel } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
 
@@ -86,6 +87,7 @@ export default async function MorePage() {
           ) : null}
 
           <div className="mt-7"><LogoutDialog /></div>
+          <PwaStatus />
         </div>
         <AppNav />
       </div>
