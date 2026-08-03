@@ -11,6 +11,13 @@
   "background_color": "#0f0f13",
   "theme_color": "#7c3aed",
   "prefer_related_applications": false,
+  "related_applications": [
+    {
+      "platform": "webapp",
+      "url": "/manifest.webmanifest",
+      "id": "https://hips-app.vercel.app/"
+    }
+  ],
   "dir": "ltr",
   "lang": "es-MX",
   "categories": ["lifestyle", "utilities"],
