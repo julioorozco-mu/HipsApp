@@ -1,27 +1,35 @@
 {
-  "name": "Hipsdance Flow",
+  "id": "/",
+  "name": "HipsApp",
   "short_name": "HipsApp",
-  "description": "Gestion de asistencias, membresias y rachas para la academia Hipsdance.",
+  "description": "Gestión de asistencias, membresías, clases y playlists para Hipsdance.",
   "start_url": "/",
   "scope": "/",
-  "display": "fullscreen",
+  "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#0f0f13",
   "theme_color": "#7c3aed",
+  "prefer_related_applications": false,
   "dir": "ltr",
-  "lang": "es",
+  "lang": "es-MX",
   "categories": ["lifestyle", "utilities"],
   "icons": [
     {
-      "src": "/icons/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/icon-maskable.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "maskable"
     }
   ]
