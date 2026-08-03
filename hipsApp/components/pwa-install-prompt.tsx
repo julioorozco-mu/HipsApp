@@ -243,7 +243,7 @@ export function PwaInstallPrompt() {
   return (
     <aside
       aria-label="Instalar HipsApp"
-      className="fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] z-20 mx-auto max-w-md rounded-2xl bg-foreground px-4 py-3 text-background shadow-xl sm:bottom-6"
+      className="fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+7.25rem)] z-40 mx-auto max-w-md animate-in rounded-2xl bg-foreground px-4 py-3 text-background shadow-xl duration-500 fade-in slide-in-from-bottom-8 motion-reduce:animate-none sm:bottom-6"
     >
       <button
         type="button"
