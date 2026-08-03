@@ -20,9 +20,9 @@ const unbounded = Unbounded({
 });
 
 export const metadata: Metadata = {
-  title: "HipsApp",
+  title: "Hipsdance Flow",
   description:
-    "Gestión de asistencias, membresías, clases y playlists para Hipsdance.",
+    "Gestion de asistencias, membresias y rachas para la academia Hipsdance.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
