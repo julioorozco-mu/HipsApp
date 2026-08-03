@@ -6,14 +6,23 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "display_override": ["standalone", "minimal-ui"],
+  "display_override": [
+    "fullscreen",
+    "minimal-ui",
+    "standalone",
+    "window-controls-overlay"
+  ],
   "orientation": "portrait-primary",
   "background_color": "#0f0f13",
   "theme_color": "#7c3aed",
   "prefer_related_applications": false,
   "dir": "ltr",
   "lang": "es-MX",
-  "categories": ["lifestyle", "utilities"],
+  "categories": [
+    "fitness",
+    "lifestyle",
+    "utilities"
+  ],
   "icons": [
     {
       "src": "/icons/icon-192.png",
