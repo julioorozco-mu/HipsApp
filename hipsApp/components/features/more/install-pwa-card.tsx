@@ -1,58 +1,54 @@
 "use client";
 
-import {
-  CheckCircle2,
-  Clock3,
-  Download,
-  RefreshCw,
-  Share2,
-  Smartphone,
-} from "lucide-react";
-import { useState } from "react";
+import { CheckCircle2, Clock3, Download, RefreshCw, Share2, Smartphone } from "lucide-react";
+import { useEffect, useState } from "react";
 
-import { usePwaInstall } from "@/components/pwa-install-prompt";
+type InstallEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+};
 
 export function InstallPwaCard() {
-  const { canInstall, installed, installing, isIos, ready, install } =
-    usePwaInstall();
+  const [event, setEvent] = useState<InstallEvent | null>(null);
+  const [installed, setInstalled] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  async function handleInstall() {
-    if (isIos) {
+  useEffect(() => {
+    const standalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      (navigator as Navigator & { standalone?: boolean }).standalone === true;
+    setInstalled(standalone);
+
+    const capture = (value: Event) => {
+      value.preventDefault();
+      setEvent(value as InstallEvent);
+    };
+    const done = () => {
+      setInstalled(true);
+      setEvent(null);
+    };
+
+    window.addEventListener("beforeinstallprompt", capture);
+    window.addEventListener("appinstalled", done);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", capture);
+      window.removeEventListener("appinstalled", done);
+    };
+  }, []);
+
+  async function install() {
+    if (!event) {
       setMessage(
-        "En iPhone abre HipsApp en Safari, toca Compartir y elige “Agregar a pantalla de inicio”."
+        "En iPhone usa Compartir → Agregar a pantalla de inicio. En Android abre el menú del navegador → Instalar aplicación."
       );
       return;
     }
 
-    if (!canInstall) {
-      setMessage(
-        "Chrome todavía no habilita la instalación como aplicación. Actualiza esta página una vez y espera unos segundos. No uses “Agregar a pantalla principal” si muestra un widget 1 × 1."
-      );
-      return;
-    }
-
-    const outcome = await install();
-    setMessage(
-      outcome === "accepted"
-        ? "Solicitud enviada a Chrome. Espera a que Android termine de instalar HipsApp. Si el cuadro dice “widget 1 × 1”, toca “No, gracias”: ese flujo solo crea un acceso directo."
-        : outcome === "dismissed"
-          ? "La instalación fue cancelada. Puedes intentarlo nuevamente cuando Chrome vuelva a habilitar el instalador."
-          : "El instalador todavía no está disponible. Actualiza esta página en Chrome."
-    );
+    await event.prompt();
+    const choice = await event.userChoice;
+    if (choice.outcome === "accepted") setInstalled(true);
+    setEvent(null);
   }
-
-  const buttonLabel = installed
-    ? "HipsApp instalada"
-    : installing
-      ? "Abriendo instalador…"
-      : isIos
-        ? "Cómo instalar HipsApp"
-        : canInstall
-          ? "Instalar HipsApp"
-          : ready
-            ? "Comprobar instalador"
-            : "Preparando instalación…";
 
   return (
     <div className="flex flex-1 flex-col text-center">
@@ -63,47 +59,44 @@ export function InstallPwaCard() {
         Instala HipsApp en tu dispositivo
       </h2>
       <p className="mt-2 text-muted-foreground">
-        La instalación correcta aparece en el cajón de aplicaciones y abre sin la barra de Chrome.
+        Disfruta una experiencia rápida, directa y en pantalla completa.
       </p>
-
       <div className="mt-7 grid gap-3 text-left">
         <Feature
           icon={Download}
-          title="Aplicación independiente"
-          text="Chrome instala una WebAPK; no aceptes el cuadro de widget 1 × 1"
+          title="Acceso rápido"
+          text="Abre HipsApp desde tu pantalla de inicio"
         />
         <Feature
           icon={Clock3}
-          title="Acceso rápido"
-          text="Abre HipsApp desde el cajón de aplicaciones o la pantalla de inicio"
+          title="Funciona como app"
+          text="Navegación fluida sin abrir el navegador"
         />
         <Feature
           icon={RefreshCw}
           title="Actualizaciones automáticas"
-          text="Siempre tendrás la última versión disponible"
+          text="Siempre tendrás la última versión"
         />
       </div>
-
       {message ? (
         <p className="mt-5 rounded-xl bg-primary/5 p-4 text-left text-sm text-primary">
           <Share2 className="mr-2 inline size-4" />
           {message}
         </p>
       ) : null}
-
       <button
         type="button"
-        onClick={handleInstall}
-        disabled={installed || installing || !ready}
-        className="mt-auto min-h-13 rounded-xl bg-primary px-4 font-semibold text-primary-foreground disabled:bg-green-600 disabled:opacity-80"
+        onClick={install}
+        disabled={installed}
+        className="mt-auto min-h-13 rounded-xl bg-primary px-4 font-semibold text-primary-foreground disabled:bg-green-600"
       >
         {installed ? (
           <span className="inline-flex items-center gap-2">
             <CheckCircle2 className="size-5" />
-            {buttonLabel}
+            HipsApp instalada
           </span>
         ) : (
-          buttonLabel
+          "Instalar HipsApp"
         )}
       </button>
     </div>
