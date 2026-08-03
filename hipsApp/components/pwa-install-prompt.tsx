@@ -1,14 +1,32 @@
 "use client";
 
 import { CircleCheckBig, Download, Share, Smartphone, X } from "lucide-react";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { usePathname } from "next/navigation";
+import {
+  createContext,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 };
 
-const subscribeNever = () => () => undefined;
+type InstallOutcome = "accepted" | "dismissed" | "unavailable";
+
+type PwaInstallContextValue = {
+  canInstall: boolean;
+  installed: boolean;
+  installing: boolean;
+  isIos: boolean;
+  ready: boolean;
+  install: () => Promise<InstallOutcome>;
+};
+
+const PwaInstallContext = createContext<PwaInstallContextValue | null>(null);
 
 function isIosDevice() {
   return (
@@ -26,20 +44,88 @@ function isStandalone() {
   );
 }
 
-function subscribeToDisplayMode(callback: () => void) {
-  const media = window.matchMedia(
-    "(display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui)"
+export function PwaInstallProvider({ children }: { children: ReactNode }) {
+  const [installPrompt, setInstallPrompt] =
+    useState<BeforeInstallPromptEvent | null>(null);
+  const [installed, setInstalled] = useState(false);
+  const [installing, setInstalling] = useState(false);
+  const [isIos, setIsIos] = useState(false);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia(
+      "(display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui)"
+    );
+    const syncInstalled = () => setInstalled(isStandalone());
+    const handleInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as BeforeInstallPromptEvent);
+    };
+    const handleInstalled = () => {
+      setInstalled(true);
+      setInstallPrompt(null);
+    };
+
+    setIsIos(isIosDevice());
+    syncInstalled();
+    setReady(true);
+
+    media.addEventListener("change", syncInstalled);
+    window.addEventListener("beforeinstallprompt", handleInstallPrompt);
+    window.addEventListener("appinstalled", handleInstalled);
+
+    if ("serviceWorker" in navigator && window.isSecureContext) {
+      navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+    }
+
+    return () => {
+      media.removeEventListener("change", syncInstalled);
+      window.removeEventListener("beforeinstallprompt", handleInstallPrompt);
+      window.removeEventListener("appinstalled", handleInstalled);
+    };
+  }, []);
+
+  async function install(): Promise<InstallOutcome> {
+    if (!installPrompt) return "unavailable";
+
+    setInstalling(true);
+    try {
+      await installPrompt.prompt();
+      const { outcome } = await installPrompt.userChoice;
+      setInstallPrompt(null);
+      if (outcome === "accepted") setInstalled(true);
+      return outcome;
+    } finally {
+      setInstalling(false);
+    }
+  }
+
+  return (
+    <PwaInstallContext.Provider
+      value={{
+        canInstall: Boolean(installPrompt),
+        installed,
+        installing,
+        isIos,
+        ready,
+        install,
+      }}
+    >
+      {children}
+    </PwaInstallContext.Provider>
   );
-  media.addEventListener("change", callback);
-  return () => media.removeEventListener("change", callback);
+}
+
+export function usePwaInstall() {
+  const value = useContext(PwaInstallContext);
+  if (!value) {
+    throw new Error("usePwaInstall debe usarse dentro de PwaInstallProvider.");
+  }
+  return value;
 }
 
 export function PwaStatus() {
-  const installed = useSyncExternalStore(
-    subscribeToDisplayMode,
-    isStandalone,
-    () => false
-  );
+  const { installed, ready } = usePwaInstall();
   const Icon = installed ? CircleCheckBig : Smartphone;
 
   return (
@@ -67,7 +153,9 @@ export function PwaStatus() {
         <p className="text-sm text-muted-foreground">
           {installed
             ? "Accede rápido desde tu pantalla de inicio"
-            : "Instálala desde el aviso del navegador"}
+            : ready
+              ? "Instálala como aplicación desde HipsApp"
+              : "Comprobando instalación…"}
         </p>
       </div>
     </section>
@@ -75,49 +163,25 @@ export function PwaStatus() {
 }
 
 export function PwaInstallPrompt() {
-  const [installPrompt, setInstallPrompt] =
-    useState<BeforeInstallPromptEvent | null>(null);
+  const pathname = usePathname();
+  const { canInstall, installed, installing, isIos, ready, install } =
+    usePwaInstall();
   const [dismissed, setDismissed] = useState(false);
-  const isIos = useSyncExternalStore(subscribeNever, isIosDevice, () => false);
-  const standalone = useSyncExternalStore(
-    subscribeToDisplayMode,
-    isStandalone,
-    () => true
-  );
 
-  useEffect(() => {
-    const handleInstallPrompt = (event: Event) => {
-      event.preventDefault();
-      setInstallPrompt(event as BeforeInstallPromptEvent);
-    };
-    const handleInstalled = () => {
-      setInstallPrompt(null);
-      setDismissed(true);
-    };
-
-    window.addEventListener("beforeinstallprompt", handleInstallPrompt);
-    window.addEventListener("appinstalled", handleInstalled);
-
-    if ("serviceWorker" in navigator && window.isSecureContext) {
-      navigator.serviceWorker.register("/sw.js").catch(() => undefined);
-    }
-
-    return () => {
-      window.removeEventListener("beforeinstallprompt", handleInstallPrompt);
-      window.removeEventListener("appinstalled", handleInstalled);
-    };
-  }, []);
-
-  async function install() {
-    if (!installPrompt) return;
-
-    await installPrompt.prompt();
-    const { outcome } = await installPrompt.userChoice;
-    setInstallPrompt(null);
-    setDismissed(outcome !== "accepted");
+  async function handleInstall() {
+    const outcome = await install();
+    if (outcome !== "unavailable") setDismissed(true);
   }
 
-  if (dismissed || standalone || (!isIos && !installPrompt)) return null;
+  if (
+    pathname === "/instalar" ||
+    !ready ||
+    dismissed ||
+    installed ||
+    (!isIos && !canInstall)
+  ) {
+    return null;
+  }
 
   return (
     <aside
@@ -140,22 +204,25 @@ export function PwaInstallPrompt() {
           <p className="font-semibold">Instala HipsApp</p>
           {isIos ? (
             <p className="text-sm text-background/75">
-              Toca <Share className="inline size-3" aria-hidden="true" /> y luego
-              &nbsp;“Agregar a inicio”.
+              En Safari toca <Share className="inline size-3" aria-hidden="true" /> y
+              luego “Agregar a inicio”.
             </p>
           ) : (
-            <p className="text-sm text-background/75">Ábrela en pantalla completa.</p>
+            <p className="text-sm text-background/75">
+              Usa el instalador nativo para abrirla como aplicación.
+            </p>
           )}
         </div>
-        {!isIos && (
+        {!isIos ? (
           <button
             type="button"
-            onClick={install}
-            className="ml-auto min-h-10 shrink-0 rounded-xl bg-background px-3 text-sm font-semibold text-foreground hover:bg-background/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-background"
+            onClick={handleInstall}
+            disabled={installing}
+            className="ml-auto min-h-10 shrink-0 rounded-xl bg-background px-3 text-sm font-semibold text-foreground hover:bg-background/90 disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-background"
           >
-            Instalar
+            {installing ? "Abriendo…" : "Instalar"}
           </button>
-        )}
+        ) : null}
       </div>
     </aside>
   );

@@ -1,6 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Unbounded } from "next/font/google";
-import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
+
+import {
+  PwaInstallPrompt,
+  PwaInstallProvider,
+} from "@/components/pwa-install-prompt";
+
 import "./globals.css";
 
 const geistSans = Geist({
@@ -20,8 +25,9 @@ const unbounded = Unbounded({
 });
 
 export const metadata: Metadata = {
-  title: "Hipsdance Flow",
-  description: "Gestion de asistencias, membresias y rachas para la academia Hipsdance.",
+  title: "HipsApp",
+  description:
+    "Gestión de asistencias, membresías, clases y playlists para Hipsdance.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -47,8 +53,10 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${unbounded.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        {children}
-        <PwaInstallPrompt />
+        <PwaInstallProvider>
+          {children}
+          <PwaInstallPrompt />
+        </PwaInstallProvider>
       </body>
     </html>
   );
