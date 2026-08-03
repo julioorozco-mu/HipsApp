@@ -14,7 +14,7 @@
   "related_applications": [
     {
       "platform": "webapp",
-      "url": "/manifest.webmanifest",
+      "url": "https://hips-app.vercel.app/manifest.webmanifest",
       "id": "https://hips-app.vercel.app/"
     }
   ],
