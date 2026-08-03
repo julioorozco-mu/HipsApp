@@ -163,24 +163,84 @@ function actualConflict(
   return null;
 }
 
+function orderedStartOptions(from: string) {
+  const firstIndex = startTimeOptions.findIndex(
+    (time) => minutes(time) >= minutes(from)
+  );
+  const index = firstIndex < 0 ? 0 : firstIndex;
+  return [
+    ...startTimeOptions.slice(index),
+    ...startTimeOptions.slice(0, index),
+  ];
+}
+
+function findAvailableInterval(
+  from: string,
+  current: Interval[],
+  selectedWeekdays: number[],
+  occupiedSchedules: ClassOccupiedSchedule[]
+): Interval | null {
+  for (const start of orderedStartOptions(from)) {
+    const end = oneHourLater(start);
+    if (
+      end &&
+      !startConflict(
+        start,
+        current.length,
+        current,
+        selectedWeekdays,
+        occupiedSchedules
+      )
+    ) {
+      return { start, end };
+    }
+  }
+  return null;
+}
+
+function reconcileIntervals(
+  current: Interval[],
+  selectedWeekdays: number[],
+  occupiedSchedules: ClassOccupiedSchedule[]
+) {
+  return current.reduce<Interval[]>((resolved, interval) => {
+    const candidateIntervals = [...resolved, interval];
+    const conflict = actualConflict(
+      interval,
+      resolved.length,
+      candidateIntervals,
+      selectedWeekdays,
+      occupiedSchedules
+    );
+
+    if (!conflict) {
+      resolved.push(interval);
+      return resolved;
+    }
+
+    resolved.push(
+      findAvailableInterval(
+        interval.start,
+        resolved,
+        selectedWeekdays,
+        occupiedSchedules
+      ) ?? interval
+    );
+    return resolved;
+  }, []);
+}
+
 function nextInterval(
   current: Interval[],
   selectedWeekdays: number[],
   occupiedSchedules: ClassOccupiedSchedule[]
 ) {
-  const lastEnd = current.at(-1)?.end ?? "08:00";
-  const firstIndex = Math.max(0, startTimeOptions.findIndex((time) => minutes(time) >= minutes(lastEnd)));
-  for (let index = firstIndex; index < startTimeOptions.length; index += 1) {
-    const start = startTimeOptions[index];
-    const end = oneHourLater(start);
-    if (
-      end &&
-      !startConflict(start, current.length, current, selectedWeekdays, occupiedSchedules)
-    ) {
-      return { start, end };
-    }
-  }
-  return { start: "09:00", end: "10:00" };
+  return findAvailableInterval(
+    current.at(-1)?.end ?? "00:00",
+    current,
+    selectedWeekdays,
+    occupiedSchedules
+  );
 }
 
 export function ClassForm({
@@ -198,6 +258,11 @@ export function ClassForm({
 }: ClassFormProps) {
   const [intervals, setIntervals] = useState<Interval[]>(defaultIntervals);
   const [selectedWeekdays, setSelectedWeekdays] = useState<number[]>(defaultWeekdays);
+  const availableNextInterval = nextInterval(
+    intervals,
+    selectedWeekdays,
+    occupiedSchedules
+  );
 
   function updateInterval(index: number, field: keyof Interval, value: string) {
     setIntervals((current) =>
@@ -212,12 +277,16 @@ export function ClassForm({
   }
 
   function toggleWeekday(index: number) {
-    setSelectedWeekdays((current) => {
-      if (!multipleWeekdays) return [index];
-      return current.includes(index)
-        ? current.filter((day) => day !== index)
-        : [...current, index].sort();
-    });
+    const nextWeekdays = !multipleWeekdays
+      ? [index]
+      : selectedWeekdays.includes(index)
+        ? selectedWeekdays.filter((day) => day !== index)
+        : [...selectedWeekdays, index].sort();
+
+    setSelectedWeekdays(nextWeekdays);
+    setIntervals((current) =>
+      reconcileIntervals(current, nextWeekdays, occupiedSchedules)
+    );
   }
 
   return (
@@ -285,19 +354,18 @@ export function ClassForm({
           <div>
             <legend className="text-sm font-semibold">Horarios</legend>
             <p className="mt-1 text-xs text-muted-foreground">
-              Al elegir el inicio, el término se calcula automáticamente una hora después.
+              Se propone el siguiente bloque libre y el término se calcula una hora después.
             </p>
           </div>
           {multipleIntervals ? (
             <button
               type="button"
-              onClick={() =>
-                setIntervals((current) => [
-                  ...current,
-                  nextInterval(current, selectedWeekdays, occupiedSchedules),
-                ])
-              }
-              className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl border border-primary px-3 text-sm font-semibold text-primary"
+              disabled={!availableNextInterval}
+              onClick={() => {
+                if (!availableNextInterval) return;
+                setIntervals((current) => [...current, availableNextInterval]);
+              }}
+              className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl border border-primary px-3 text-sm font-semibold text-primary disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Plus className="size-4" /> Agregar
             </button>
@@ -333,7 +401,7 @@ export function ClassForm({
                       );
                       return (
                         <option key={time} value={time} disabled={Boolean(unavailable)}>
-                          {timeLabel(time)}{unavailable ? ` · Ocupado` : ""}
+                          {timeLabel(time)}{unavailable ? " · Ocupado" : ""}
                         </option>
                       );
                     })}

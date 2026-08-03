@@ -17,12 +17,33 @@ type ScheduledClassRow = {
   weekday: number;
 };
 
-function endTime(start: string, duration: number) {
-  const [hour, minute] = start.slice(0, 5).split(":").map(Number);
-  const total = hour * 60 + minute + duration;
+function formatTime(total: number) {
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(
     total % 60
   ).padStart(2, "0")}`;
+}
+
+function endTime(start: string, duration: number) {
+  const [hour, minute] = start.slice(0, 5).split(":").map(Number);
+  return formatTime(hour * 60 + minute + duration);
+}
+
+function nextHalfHourInterval() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit",
+    hourCycle: "h23",
+    minute: "2-digit",
+    timeZone: "America/Mexico_City",
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const nowMinutes = Number(values.hour) * 60 + Number(values.minute);
+  const rounded = (Math.floor(nowMinutes / 30) + 1) * 30;
+  const startMinutes = rounded > 23 * 60 ? 0 : rounded;
+
+  return {
+    start: formatTime(startMinutes),
+    end: formatTime(startMinutes + 60),
+  };
 }
 
 export default async function NewClassPage() {
@@ -93,6 +114,7 @@ export default async function NewClassPage() {
     <MoreShell title="Nueva clase" backHref="/clases">
       <ClassForm
         action={createClass}
+        defaultIntervals={[nextHalfHourInterval()]}
         occupiedSchedules={occupiedSchedules}
         playlists={playlists}
         submitLabel="Guardar clase"
