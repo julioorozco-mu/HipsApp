@@ -19,6 +19,15 @@ type ProfileWithPhone = {
   whatsapp?: string | null;
 };
 
+type StudentOverviewRow = {
+  correo: string | null;
+  fecha_registro: string;
+  id: string;
+  membership_status: string | null;
+  nombre: string;
+  telefono: string;
+};
+
 export default async function UsersPage({
   searchParams,
 }: {
@@ -38,7 +47,10 @@ export default async function UsersPage({
 
   const [profilesResult, studentsResult] = await Promise.all([
     supabase.from("profiles").select("*").order("created_at"),
-    supabase.from("students").select("id, telefono"),
+    supabase
+      .from("student_overview")
+      .select("id, nombre, telefono, correo, fecha_registro, membership_status")
+      .order("nombre"),
   ]);
 
   if (profilesResult.error || studentsResult.error) {
@@ -49,24 +61,42 @@ export default async function UsersPage({
     );
   }
 
-  const studentPhones = new Map(
-    (studentsResult.data ?? []).map((student) => [student.id, student.telefono])
-  );
   const profiles = (profilesResult.data ?? []) as ProfileWithPhone[];
+  const students = (studentsResult.data ?? []) as StudentOverviewRow[];
+  const studentMap = new Map(students.map((student) => [student.id, student]));
+  const profileIds = new Set(profiles.map((profile) => profile.id));
+
   const users: ManagedUserItem[] = profiles.map((profile) => {
     const role = normalizeRole(profile.role);
+    const student = role === "alumno" ? studentMap.get(profile.id) : null;
     return {
       createdAt: profile.created_at,
-      email: profile.email,
-      fullName: profile.full_name,
+      editHref: `/usuarios/${profile.id}/editar`,
+      email: student?.correo ?? profile.email,
+      fullName: student?.nombre ?? profile.full_name,
+      hasAccount: true,
       id: profile.id,
-      phone:
-        role === "alumno"
-          ? studentPhones.get(profile.id) ?? profile.whatsapp ?? null
-          : profile.whatsapp ?? null,
+      membershipStatus: student?.membership_status ?? null,
+      phone: student?.telefono ?? profile.whatsapp ?? null,
       role,
     };
   });
+
+  students.forEach((student) => {
+    if (profileIds.has(student.id)) return;
+    users.push({
+      createdAt: student.fecha_registro,
+      editHref: `/alumnos/${student.id}/editar`,
+      email: student.correo,
+      fullName: student.nombre,
+      hasAccount: false,
+      id: student.id,
+      membershipStatus: student.membership_status ?? "sin_registro",
+      phone: student.telefono,
+      role: "alumno",
+    });
+  });
+  users.sort((a, b) => a.fullName.localeCompare(b.fullName, "es-MX"));
 
   const successMessage = params.created === "1"
     ? "Usuario creado correctamente."
