@@ -1,11 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import {
+  type PointerEvent as ReactPointerEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ChevronRight,
   GraduationCap,
   LockKeyhole,
+  Pencil,
   Search,
   ShieldCheck,
   ShieldEllipsis,
@@ -30,6 +37,7 @@ const filters: { label: string; value: Filter }[] = [
   { label: "Administradores", value: "administradores" },
   { label: "Alumnos", value: "alumnos" },
 ];
+const EDIT_ACTION_WIDTH = 92;
 
 function roleMeta(role: AppRole) {
   if (role === "superadmin") {
@@ -89,9 +97,127 @@ function UserContent({ user }: { user: ManagedUserItem }) {
   );
 }
 
+function SwipeStudentRow({
+  open,
+  onOpenChange,
+  user,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  user: ManagedUserItem;
+}) {
+  const rowRef = useRef<HTMLLIElement>(null);
+  const startXRef = useRef<number | null>(null);
+  const startOffsetRef = useRef(0);
+  const offsetRef = useRef(0);
+  const movedRef = useRef(false);
+  const [offset, setOffset] = useState(open ? -EDIT_ACTION_WIDTH : 0);
+
+  function updateOffset(next: number) {
+    const clamped = Math.max(-EDIT_ACTION_WIDTH, Math.min(0, next));
+    offsetRef.current = clamped;
+    setOffset(clamped);
+  }
+
+  useEffect(() => {
+    updateOffset(open ? -EDIT_ACTION_WIDTH : 0);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const closeOutside = (event: PointerEvent) => {
+      if (!rowRef.current?.contains(event.target as Node)) {
+        onOpenChange(false);
+      }
+    };
+    const closeWithEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onOpenChange(false);
+    };
+
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeWithEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", closeWithEscape);
+    };
+  }, [onOpenChange, open]);
+
+  function handlePointerDown(event: ReactPointerEvent<HTMLAnchorElement>) {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    startXRef.current = event.clientX;
+    startOffsetRef.current = offsetRef.current;
+    movedRef.current = false;
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function handlePointerMove(event: ReactPointerEvent<HTMLAnchorElement>) {
+    if (startXRef.current === null) return;
+    const delta = event.clientX - startXRef.current;
+    if (Math.abs(delta) > 5) movedRef.current = true;
+    updateOffset(startOffsetRef.current + delta);
+  }
+
+  function finishGesture(event: ReactPointerEvent<HTMLAnchorElement>) {
+    if (startXRef.current === null) return;
+    startXRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    onOpenChange(offsetRef.current <= -EDIT_ACTION_WIDTH / 2);
+  }
+
+  function cancelGesture() {
+    startXRef.current = null;
+    movedRef.current = false;
+    updateOffset(open ? -EDIT_ACTION_WIDTH : 0);
+  }
+
+  return (
+    <li ref={rowRef} className="relative overflow-hidden bg-card">
+      <Link
+        href={`/usuarios/${user.id}/editar`}
+        aria-label={`Editar a ${user.fullName}`}
+        onFocus={() => onOpenChange(true)}
+        className="absolute inset-y-0 right-0 grid w-[92px] place-items-center bg-primary text-sm font-semibold text-primary-foreground focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-background"
+      >
+        <span className="grid place-items-center gap-1">
+          <Pencil className="size-5" />
+          Editar
+        </span>
+      </Link>
+
+      <Link
+        href={`/alumnos/${user.id}`}
+        aria-label={`Ver perfil de ${user.fullName}`}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={finishGesture}
+        onPointerCancel={cancelGesture}
+        onBlur={() => {
+          if (startXRef.current === null && open) onOpenChange(false);
+        }}
+        onClick={(event) => {
+          if (movedRef.current || open) {
+            event.preventDefault();
+            movedRef.current = false;
+            if (open) onOpenChange(false);
+          }
+        }}
+        className="relative z-10 grid min-h-24 touch-pan-y grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 bg-card px-4 py-3 transition-[transform,background-color] duration-200 ease-out hover:bg-secondary/60 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary active:bg-secondary"
+        style={{ transform: `translateX(${offset}px)` }}
+      >
+        <UserContent user={user} />
+        <ChevronRight className="size-5 text-muted-foreground" />
+      </Link>
+    </li>
+  );
+}
+
 export function UserList({ users }: { users: ManagedUserItem[] }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("todos");
+  const [openUserId, setOpenUserId] = useState<string | null>(null);
 
   const visibleUsers = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("es-MX");
@@ -108,6 +234,10 @@ export function UserList({ users }: { users: ManagedUserItem[] }) {
       return matchesText && matchesRole;
     });
   }, [filter, query, users]);
+
+  useEffect(() => {
+    setOpenUserId(null);
+  }, [filter, query]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -144,18 +274,33 @@ export function UserList({ users }: { users: ManagedUserItem[] }) {
       <div className="mt-3 min-h-0 overflow-y-auto overscroll-contain rounded-2xl border bg-card">
         {visibleUsers.length ? (
           <ul className="divide-y">
-            {visibleUsers.map((user) =>
-              user.role === "superadmin" ? (
-                <li
-                  key={user.id}
-                  className="grid min-h-24 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3"
-                >
-                  <UserContent user={user} />
-                  <span className="grid size-9 place-items-center rounded-full bg-secondary text-muted-foreground" title="Cuenta protegida">
-                    <LockKeyhole className="size-4" />
-                  </span>
-                </li>
-              ) : (
+            {visibleUsers.map((user) => {
+              if (user.role === "superadmin") {
+                return (
+                  <li
+                    key={user.id}
+                    className="grid min-h-24 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3"
+                  >
+                    <UserContent user={user} />
+                    <span className="grid size-9 place-items-center rounded-full bg-secondary text-muted-foreground" title="Cuenta protegida">
+                      <LockKeyhole className="size-4" />
+                    </span>
+                  </li>
+                );
+              }
+
+              if (user.role === "alumno") {
+                return (
+                  <SwipeStudentRow
+                    key={user.id}
+                    user={user}
+                    open={openUserId === user.id}
+                    onOpenChange={(open) => setOpenUserId(open ? user.id : null)}
+                  />
+                );
+              }
+
+              return (
                 <li key={user.id}>
                   <Link
                     href={`/usuarios/${user.id}/editar`}
@@ -166,8 +311,8 @@ export function UserList({ users }: { users: ManagedUserItem[] }) {
                     <ChevronRight className="size-5 text-muted-foreground" />
                   </Link>
                 </li>
-              )
-            )}
+              );
+            })}
           </ul>
         ) : (
           <p className="px-5 py-12 text-center text-sm text-muted-foreground">

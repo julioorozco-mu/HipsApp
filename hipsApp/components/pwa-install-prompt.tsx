@@ -28,8 +28,11 @@ type PwaSnapshot = {
 const INSTALL_REQUEST_EVENT = "hipsapp:request-install";
 const INSTALLED_STORAGE_KEY = "hipsapp:pwa-installed";
 const SERVER_SNAPSHOT: PwaSnapshot = { canInstall: false, installed: false };
+const BANNER_DURATION_MS = 20_000;
+const BANNER_EXIT_MS = 320;
 const pwaListeners = new Set<() => void>();
 let pwaSnapshot = SERVER_SNAPSHOT;
+let installBannerShownThisLoad = false;
 
 const subscribeNever = () => () => undefined;
 
@@ -170,7 +173,11 @@ export function PwaInstallPrompt() {
   const [installPrompt, setInstallPrompt] =
     useState<BeforeInstallPromptEvent | null>(null);
   const installPromptRef = useRef<BeforeInstallPromptEvent | null>(null);
-  const [dismissed, setDismissed] = useState(false);
+  const closeTimerRef = useRef<number | null>(null);
+  const [dismissed, setDismissed] = useState(
+    () => installBannerShownThisLoad
+  );
+  const [closing, setClosing] = useState(false);
   const isIos = useSyncExternalStore(subscribeNever, isIosDevice, () => false);
   const standalone = useSyncExternalStore(
     subscribeToDisplayMode,
@@ -178,17 +185,31 @@ export function PwaInstallPrompt() {
     () => true
   );
 
+  const dismissBanner = useCallback(() => {
+    if (dismissed || closing) return;
+
+    setClosing(true);
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+    }
+    closeTimerRef.current = window.setTimeout(() => {
+      setDismissed(true);
+      setClosing(false);
+      closeTimerRef.current = null;
+    }, BANNER_EXIT_MS);
+  }, [closing, dismissed]);
+
   const install = useCallback(async () => {
     const prompt = installPromptRef.current;
     if (!prompt) return;
 
     await prompt.prompt();
-    const { outcome } = await prompt.userChoice;
+    await prompt.userChoice;
     installPromptRef.current = null;
     setInstallPrompt(null);
-    setDismissed(outcome !== "accepted");
     updatePwaSnapshot({ canInstall: false });
-  }, []);
+    dismissBanner();
+  }, [dismissBanner]);
 
   useEffect(() => {
     const displayMode = window.matchMedia(
@@ -204,19 +225,24 @@ export function PwaInstallPrompt() {
       const prompt = event as BeforeInstallPromptEvent;
       installPromptRef.current = prompt;
       setInstallPrompt(prompt);
-      setDismissed(false);
       storeInstallation(false);
       updatePwaSnapshot({ canInstall: true, installed: false });
+
+      if (!installBannerShownThisLoad) {
+        installBannerShownThisLoad = true;
+        setDismissed(false);
+        setClosing(false);
+      }
     };
     const handleInstalled = () => {
       installPromptRef.current = null;
       setInstallPrompt(null);
       setDismissed(true);
+      setClosing(false);
       storeInstallation(true);
       updatePwaSnapshot({ canInstall: false, installed: true });
     };
     const handleInstallRequest = () => {
-      setDismissed(false);
       void install();
     };
 
@@ -238,17 +264,45 @@ export function PwaInstallPrompt() {
     };
   }, [install]);
 
+  useEffect(() => {
+    if (!isIos || standalone || installBannerShownThisLoad) return;
+    installBannerShownThisLoad = true;
+    setDismissed(false);
+  }, [isIos, standalone]);
+
+  useEffect(() => {
+    if (dismissed || closing || standalone || (!isIos && !installPrompt)) {
+      return;
+    }
+
+    const timeout = window.setTimeout(dismissBanner, BANNER_DURATION_MS);
+    return () => window.clearTimeout(timeout);
+  }, [closing, dismissBanner, dismissed, installPrompt, isIos, standalone]);
+
+  useEffect(
+    () => () => {
+      if (closeTimerRef.current !== null) {
+        window.clearTimeout(closeTimerRef.current);
+      }
+    },
+    []
+  );
+
   if (dismissed || standalone || (!isIos && !installPrompt)) return null;
 
   return (
     <aside
       aria-label="Instalar HipsApp"
-      className="fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+7.25rem)] z-40 mx-auto max-w-md animate-in rounded-2xl bg-foreground px-4 py-3 text-background shadow-xl duration-500 fade-in slide-in-from-bottom-8 motion-reduce:animate-none sm:bottom-6"
+      className={`fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+7.25rem)] z-40 mx-auto max-w-md rounded-2xl bg-foreground px-4 py-3 text-background shadow-xl transition-[transform,opacity] ease-in motion-reduce:animate-none motion-reduce:transition-none sm:bottom-6 ${
+        closing
+          ? "translate-y-[calc(100%+8rem)] opacity-0 duration-300"
+          : "translate-y-0 opacity-100 animate-in duration-500 fade-in slide-in-from-bottom-8"
+      }`}
     >
       <button
         type="button"
         aria-label="Cerrar aviso de instalación"
-        onClick={() => setDismissed(true)}
+        onClick={dismissBanner}
         className="absolute top-2 right-2 rounded-full p-1 text-background/70 hover:text-background focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-background"
       >
         <X className="size-4" />

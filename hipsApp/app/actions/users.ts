@@ -23,7 +23,7 @@ function mexicoPhone(raw: string) {
 function userError(message: string, operation: "crear" | "actualizar" | "eliminar") {
   if (message.includes("email already registered")) return "Ese correo ya está registrado.";
   if (message.includes("password too short")) return "La contraseña debe tener al menos 8 caracteres.";
-  if (message.includes("student phone required") || message.includes("invalid mexico phone")) {
+  if (message.includes("phone required") || message.includes("invalid mexico phone")) {
     return "Ingresa los 10 dígitos del teléfono celular.";
   }
   if (message.includes("superadmin required")) return "Solo el Superadmin puede administrar usuarios.";
@@ -64,18 +64,18 @@ export async function createManagedUser(
   const email = value(formData, "email").toLowerCase();
   const password = String(formData.get("password") ?? "");
   const role = value(formData, "role");
-  const phone = role === "alumno" ? mexicoPhone(value(formData, "phone")) : null;
+  const phone = mexicoPhone(value(formData, "phone"));
 
   if (fullName.length < 3) return { error: "Ingresa el nombre completo." };
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { error: "Ingresa un correo válido." };
   if (password.length < 8) return { error: "La contraseña debe tener al menos 8 caracteres." };
   if (!["admin", "alumno"].includes(role)) return { error: "Selecciona Administrador o Alumno." };
-  if (role === "alumno" && !phone) return { error: "Ingresa los 10 dígitos del teléfono celular." };
+  if (!phone) return { error: "Ingresa los 10 dígitos del teléfono celular." };
 
   const auth = await requireSuperadmin();
   if (!auth.supabase) return { error: auth.error };
 
-  const { error } = await auth.supabase.rpc("create_app_user" as never, {
+  const { data, error } = await auth.supabase.rpc("create_app_user" as never, {
     p_email: email,
     p_full_name: fullName,
     p_password: password,
@@ -88,6 +88,11 @@ export async function createManagedUser(
   revalidatePath("/");
   revalidatePath("/usuarios");
   revalidatePath("/alumnos");
+
+  const createdUserId = typeof data === "string" ? data : null;
+  if (role === "alumno" && createdUserId) {
+    redirect(`/alumnos/nuevo?creado=${encodeURIComponent(createdUserId)}&origen=usuarios`);
+  }
   redirect("/usuarios?created=1");
 }
 
@@ -98,15 +103,14 @@ export async function updateManagedUser(
   const userId = value(formData, "user_id");
   const fullName = value(formData, "full_name");
   const email = value(formData, "email").toLowerCase();
-  const role = value(formData, "role");
   const rawPassword = String(formData.get("password") ?? "");
-  const phone = role === "alumno" ? mexicoPhone(value(formData, "phone")) : null;
+  const phone = mexicoPhone(value(formData, "phone"));
 
   if (!userId) return { error: "No se pudo identificar al usuario." };
   if (fullName.length < 3) return { error: "Ingresa el nombre completo." };
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { error: "Ingresa un correo válido." };
   if (rawPassword && rawPassword.length < 8) return { error: "La nueva contraseña debe tener al menos 8 caracteres." };
-  if (role === "alumno" && !phone) return { error: "Ingresa los 10 dígitos del teléfono celular." };
+  if (!phone) return { error: "Ingresa los 10 dígitos del teléfono celular." };
 
   const auth = await requireSuperadmin();
   if (!auth.supabase) return { error: auth.error };
@@ -124,6 +128,7 @@ export async function updateManagedUser(
   revalidatePath("/");
   revalidatePath("/usuarios");
   revalidatePath(`/usuarios/${userId}/editar`);
+  revalidatePath(`/alumnos/${userId}`);
   revalidatePath("/alumnos");
   redirect("/usuarios?updated=1");
 }

@@ -16,12 +16,16 @@ function keepTenDigits(value: string) {
   return value.replace(/\D/g, "").slice(0, 10);
 }
 
-export function UserForm() {
+export function UserForm({
+  initialRole = "admin",
+}: {
+  initialRole?: "admin" | "alumno";
+}) {
   const [state, formAction, pending] = useActionState(
     createManagedUser,
     initialState
   );
-  const [role, setRole] = useState<"admin" | "alumno">("admin");
+  const [role, setRole] = useState<"admin" | "alumno">(initialRole);
 
   return (
     <form action={formAction} className="flex flex-1 flex-col gap-5">
@@ -82,34 +86,32 @@ export function UserForm() {
         />
       </label>
 
-      {role === "alumno" ? (
-        <label className="grid gap-2 text-sm font-semibold">
-          Teléfono celular
-          <span className="flex overflow-hidden rounded-xl border border-border bg-card transition focus-within:border-primary focus-within:ring-3 focus-within:ring-ring/25">
-            <span className="flex min-h-12 items-center border-r border-border bg-secondary/60 px-4 text-base font-semibold text-muted-foreground">
-              +52
-            </span>
-            <input
-              className="min-h-12 min-w-0 flex-1 bg-transparent px-4 outline-none"
-              name="phone"
-              type="tel"
-              inputMode="numeric"
-              autoComplete="tel-national"
-              pattern="[0-9]{10}"
-              minLength={10}
-              maxLength={10}
-              placeholder="9611234567"
-              onInput={(event) => {
-                event.currentTarget.value = keepTenDigits(event.currentTarget.value);
-              }}
-              required
-            />
+      <label className="grid gap-2 text-sm font-semibold">
+        Teléfono celular
+        <span className="flex overflow-hidden rounded-xl border border-border bg-card transition focus-within:border-primary focus-within:ring-3 focus-within:ring-ring/25">
+          <span className="flex min-h-12 items-center border-r border-border bg-secondary/60 px-4 text-base font-semibold text-muted-foreground">
+            +52
           </span>
-          <span className="text-xs font-normal text-muted-foreground">
-            Captura únicamente los 10 dígitos; el código de México se agrega automáticamente.
-          </span>
-        </label>
-      ) : null}
+          <input
+            className="min-h-12 min-w-0 flex-1 bg-transparent px-4 outline-none"
+            name="phone"
+            type="tel"
+            inputMode="numeric"
+            autoComplete="tel-national"
+            pattern="[0-9]{10}"
+            minLength={10}
+            maxLength={10}
+            placeholder="9611234567"
+            onInput={(event) => {
+              event.currentTarget.value = keepTenDigits(event.currentTarget.value);
+            }}
+            required
+          />
+        </span>
+        <span className="text-xs font-normal text-muted-foreground">
+          Captura únicamente los 10 dígitos; el código de México se agrega automáticamente.
+        </span>
+      </label>
 
       <label className="grid gap-2 text-sm font-semibold">
         Contraseña temporal
