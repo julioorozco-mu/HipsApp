@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import {
-  type PointerEvent as ReactPointerEvent,
+  type TouchEvent as ReactTouchEvent,
   useActionState,
   useEffect,
   useMemo,
@@ -49,7 +49,6 @@ type MembershipFilter =
   | "vencida"
   | "sin_registro";
 type SortMode = "role_az" | "az" | "za";
-type GestureAxis = "pending" | "horizontal" | "vertical";
 
 const roleFilters: { label: string; value: RoleFilter }[] = [
   { label: "Todos", value: "todos" },
@@ -57,7 +56,7 @@ const roleFilters: { label: string; value: RoleFilter }[] = [
   { label: "Alumnos", value: "alumnos" },
 ];
 const ACTIONS_WIDTH = 184;
-const GESTURE_THRESHOLD = 7;
+const SWIPE_THRESHOLD = 36;
 const initialDeleteState: ManageUserState = { error: null };
 const roleRank: Record<AppRole, number> = {
   superadmin: 0,
@@ -116,7 +115,9 @@ function formatPhone(phone: string) {
 function UserContent({ user }: { user: ManagedUserItem }) {
   const meta = roleMeta(user.role);
   const Icon = meta.icon;
-  const membership = membershipMeta[user.membershipStatus ?? "sin_registro"];
+  const membership =
+    membershipMeta[user.membershipStatus ?? "sin_registro"] ??
+    membershipMeta.sin_registro;
 
   return (
     <>
@@ -126,12 +127,15 @@ function UserContent({ user }: { user: ManagedUserItem }) {
       <span className="min-w-0">
         <span className="flex min-w-0 items-center gap-2">
           <span className="truncate font-semibold">{user.fullName}</span>
-          <span className={`shrink-0 rounded-full px-2 py-1 text-[0.65rem] font-semibold ${meta.badge}`}>
+          <span
+            className={`shrink-0 rounded-full px-2 py-1 text-[0.65rem] font-semibold ${meta.badge}`}
+          >
             {meta.label}
           </span>
         </span>
         <span className="mt-1 block truncate text-sm text-muted-foreground">
-          {user.email ?? (user.hasAccount ? "Sin correo" : "Sin acceso a la PWA")}
+          {user.email ??
+            (user.hasAccount ? "Sin correo" : "Sin acceso a la PWA")}
         </span>
         <span className="mt-1 flex flex-wrap items-center gap-1.5">
           {user.phone ? (
@@ -140,7 +144,9 @@ function UserContent({ user }: { user: ManagedUserItem }) {
             </span>
           ) : null}
           {user.role === "alumno" ? (
-            <span className={`rounded-full px-2 py-0.5 text-[0.65rem] font-semibold ${membership.className}`}>
+            <span
+              className={`rounded-full px-2 py-0.5 text-[0.65rem] font-semibold ${membership.className}`}
+            >
               {membership.label}
             </span>
           ) : null}
@@ -183,7 +189,10 @@ function DeleteUserDialog({
             <X className="size-5" />
           </button>
         </div>
-        <h2 id="delete-user-title" className="mt-4 text-2xl font-bold tracking-tight">
+        <h2
+          id="delete-user-title"
+          className="mt-4 text-2xl font-bold tracking-tight"
+        >
           ¿Eliminar a {user.fullName}?
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
@@ -195,7 +204,10 @@ function DeleteUserDialog({
         <form action={action} className="mt-5 grid gap-3">
           <input name="user_id" type="hidden" value={user.id} />
           {state.error ? (
-            <p role="alert" className="rounded-xl bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
+            <p
+              role="alert"
+              className="rounded-xl bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive"
+            >
               {state.error}
             </p>
           ) : null}
@@ -230,22 +242,14 @@ function SwipeUserRow({
   user: ManagedUserItem;
 }) {
   const rowRef = useRef<HTMLLIElement>(null);
-  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
-  const gestureAxisRef = useRef<GestureAxis>("pending");
-  const startOffsetRef = useRef(0);
-  const offsetRef = useRef(0);
-  const movedRef = useRef(false);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const suppressClickRef = useRef(false);
   const [offset, setOffset] = useState(open ? -ACTIONS_WIDTH : 0);
-  const frontHref = user.role === "alumno" ? `/alumnos/${user.id}` : user.editHref;
-
-  function updateOffset(next: number) {
-    const clamped = Math.max(-ACTIONS_WIDTH, Math.min(0, next));
-    offsetRef.current = clamped;
-    setOffset(clamped);
-  }
+  const frontHref =
+    user.role === "alumno" ? `/alumnos/${user.id}` : user.editHref;
 
   useEffect(() => {
-    updateOffset(open ? -ACTIONS_WIDTH : 0);
+    setOffset(open ? -ACTIONS_WIDTH : 0);
   }, [open]);
 
   useEffect(() => {
@@ -268,86 +272,44 @@ function SwipeUserRow({
     };
   }, [onOpenChange, open]);
 
-  function releasePointer(event: ReactPointerEvent<HTMLAnchorElement>) {
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
+  function handleTouchStart(event: ReactTouchEvent<HTMLAnchorElement>) {
+    if (event.touches.length !== 1) return;
+    const touch = event.touches[0];
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+    suppressClickRef.current = false;
   }
 
-  function resetGesture() {
-    pointerStartRef.current = null;
-    gestureAxisRef.current = "pending";
-  }
+  function handleTouchEnd(event: ReactTouchEvent<HTMLAnchorElement>) {
+    const start = touchStartRef.current;
+    const touch = event.changedTouches[0];
+    touchStartRef.current = null;
+    if (!start || !touch) return;
 
-  function handlePointerDown(event: ReactPointerEvent<HTMLAnchorElement>) {
-    if (event.pointerType === "mouse" && event.button !== 0) return;
-    pointerStartRef.current = { x: event.clientX, y: event.clientY };
-    gestureAxisRef.current = "pending";
-    startOffsetRef.current = offsetRef.current;
-    movedRef.current = false;
-  }
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+    const moved = Math.abs(deltaX) > 8 || Math.abs(deltaY) > 8;
+    suppressClickRef.current = moved;
 
-  function handlePointerMove(event: ReactPointerEvent<HTMLAnchorElement>) {
-    const start = pointerStartRef.current;
-    if (!start) return;
-
-    const deltaX = event.clientX - start.x;
-    const deltaY = event.clientY - start.y;
-
-    if (gestureAxisRef.current === "pending") {
-      if (
-        Math.abs(deltaX) < GESTURE_THRESHOLD &&
-        Math.abs(deltaY) < GESTURE_THRESHOLD
-      ) {
-        return;
-      }
-
-      movedRef.current = true;
-      if (Math.abs(deltaY) > Math.abs(deltaX)) {
-        gestureAxisRef.current = "vertical";
-        return;
-      }
-
-      gestureAxisRef.current = "horizontal";
-      if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
-        event.currentTarget.setPointerCapture(event.pointerId);
-      }
-    }
-
-    if (gestureAxisRef.current !== "horizontal") return;
-
-    event.preventDefault();
-    updateOffset(startOffsetRef.current + deltaX);
-  }
-
-  function finishGesture(event: ReactPointerEvent<HTMLAnchorElement>) {
-    if (!pointerStartRef.current) return;
-    const axis = gestureAxisRef.current;
-    releasePointer(event);
-    resetGesture();
-
-    if (axis === "horizontal") {
-      onOpenChange(offsetRef.current <= -ACTIONS_WIDTH / 2);
+    if (
+      Math.abs(deltaX) >= SWIPE_THRESHOLD &&
+      Math.abs(deltaX) > Math.abs(deltaY) + 8
+    ) {
+      onOpenChange(deltaX < 0);
       return;
     }
 
-    if (axis === "vertical") {
+    if (Math.abs(deltaY) > Math.abs(deltaX)) {
       onOpenChange(false);
-      return;
     }
-
-    updateOffset(open ? -ACTIONS_WIDTH : 0);
   }
 
-  function cancelGesture(event: ReactPointerEvent<HTMLAnchorElement>) {
-    releasePointer(event);
-    resetGesture();
-    movedRef.current = false;
-    updateOffset(open ? -ACTIONS_WIDTH : 0);
+  function handleTouchCancel() {
+    touchStartRef.current = null;
+    suppressClickRef.current = true;
   }
 
   return (
-    <li ref={rowRef} className="relative overflow-hidden bg-card">
+    <li ref={rowRef} className="relative overflow-hidden bg-card touch-pan-y">
       <div className="absolute inset-y-0 right-0 flex w-[184px]">
         <Link
           href={user.editHref}
@@ -377,16 +339,19 @@ function SwipeUserRow({
       <Link
         href={frontHref}
         draggable={false}
-        aria-label={user.role === "alumno" ? `Ver perfil de ${user.fullName}` : `Editar a ${user.fullName}`}
+        aria-label={
+          user.role === "alumno"
+            ? `Ver perfil de ${user.fullName}`
+            : `Editar a ${user.fullName}`
+        }
         onDragStart={(event) => event.preventDefault()}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={finishGesture}
-        onPointerCancel={cancelGesture}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchCancel}
         onClick={(event) => {
-          if (movedRef.current || open) {
+          if (suppressClickRef.current || open) {
             event.preventDefault();
-            movedRef.current = false;
+            suppressClickRef.current = false;
             if (open) onOpenChange(false);
           }
         }}
@@ -407,7 +372,8 @@ export function UserList({ users }: { users: ManagedUserItem[] }) {
     useState<MembershipFilter>("todos");
   const [sortMode, setSortMode] = useState<SortMode>("role_az");
   const [openUserId, setOpenUserId] = useState<string | null>(null);
-  const [deletingUser, setDeletingUser] = useState<ManagedUserItem | null>(null);
+  const [deletingUser, setDeletingUser] =
+    useState<ManagedUserItem | null>(null);
 
   const visibleUsers = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("es-MX");
@@ -456,7 +422,10 @@ export function UserList({ users }: { users: ManagedUserItem[] }) {
         />
       </div>
 
-      <div className="mt-3 flex shrink-0 gap-2 overflow-x-auto pb-1" aria-label="Filtrar usuarios por rol">
+      <div
+        className="mt-3 flex shrink-0 gap-2 overflow-x-auto pb-1"
+        aria-label="Filtrar usuarios por rol"
+      >
         {roleFilters.map(({ value, label }) => (
           <button
             key={value}
@@ -505,22 +474,28 @@ export function UserList({ users }: { users: ManagedUserItem[] }) {
         </label>
       </div>
 
-      <p className="mt-2 text-xs text-muted-foreground">
+      <p className="mt-2 shrink-0 text-xs text-muted-foreground">
         Desliza un registro hacia la izquierda para editarlo o eliminarlo.
       </p>
 
-      <div className="mt-2 min-h-0 touch-pan-y overflow-y-auto overscroll-contain rounded-2xl border bg-card [-webkit-overflow-scrolling:touch]">
+      <div
+        className="mt-2 min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain rounded-2xl border bg-card pb-20"
+        style={{ WebkitOverflowScrolling: "touch" }}
+      >
         {visibleUsers.length ? (
-          <ul className="divide-y">
+          <ul className="divide-y touch-pan-y">
             {visibleUsers.map((user) => {
               if (user.role === "superadmin") {
                 return (
                   <li
                     key={user.id}
-                    className="grid min-h-24 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3"
+                    className="grid min-h-24 touch-pan-y grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3"
                   >
                     <UserContent user={user} />
-                    <span className="grid size-9 place-items-center rounded-full bg-secondary text-muted-foreground" title="Cuenta protegida">
+                    <span
+                      className="grid size-9 place-items-center rounded-full bg-secondary text-muted-foreground"
+                      title="Cuenta protegida"
+                    >
                       <LockKeyhole className="size-4" />
                     </span>
                   </li>
@@ -532,7 +507,9 @@ export function UserList({ users }: { users: ManagedUserItem[] }) {
                   key={user.id}
                   user={user}
                   open={openUserId === user.id}
-                  onOpenChange={(open) => setOpenUserId(open ? user.id : null)}
+                  onOpenChange={(nextOpen) =>
+                    setOpenUserId(nextOpen ? user.id : null)
+                  }
                   onDelete={() => {
                     setOpenUserId(null);
                     setDeletingUser(user);
