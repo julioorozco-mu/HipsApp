@@ -112,14 +112,16 @@ export function StudentList({ students }: { students: StudentListItem[] }) {
         </label>
       </div>
 
-      <div className="mt-3 max-h-[calc(100dvh-21rem)] overflow-y-auto overscroll-contain rounded-2xl border bg-card sm:max-h-[calc(100dvh-24rem)]">
+      <div className="mt-3 max-h-[calc(100dvh-21rem)] touch-pan-y overflow-y-auto overscroll-contain rounded-2xl border bg-card [-webkit-overflow-scrolling:touch] sm:max-h-[calc(100dvh-24rem)]">
         {visibleStudents.length ? (
           <ul className="divide-y">
             {visibleStudents.map((student, index) => (
               <li key={student.id}>
                 <Link
                   href={`/alumnos/${student.id}`}
-                  className="grid min-h-20 grid-cols-[auto_1fr_auto] items-center gap-3 px-3 py-2 transition-colors hover:bg-secondary/60 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary active:bg-accent"
+                  draggable={false}
+                  onDragStart={(event) => event.preventDefault()}
+                  className="grid min-h-20 touch-pan-y grid-cols-[auto_1fr_auto] items-center gap-3 px-3 py-2 transition-colors hover:bg-secondary/60 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary active:bg-accent"
                 >
                   <span
                     aria-hidden="true"
