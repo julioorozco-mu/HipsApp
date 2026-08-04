@@ -1,7 +1,9 @@
 import Link from "next/link";
 import {
   CalendarDays,
+  ChartNoAxesCombined,
   ChevronRight,
+  CreditCard,
   MessageSquareText,
   Music2,
   Settings,
@@ -15,6 +17,8 @@ import { createClient } from "@/lib/supabase/server";
 
 const managerItems = [
   { href: "/clases", icon: CalendarDays, label: "Clases" },
+  { href: "/membresias", icon: CreditCard, label: "Membresías y pagos" },
+  { href: "/reportes/pagos", icon: ChartNoAxesCombined, label: "Reportes de pagos" },
   { href: "/playlists", icon: Music2, label: "Playlists" },
   { href: "/plantillas", icon: MessageSquareText, label: "Plantillas de mensajes" },
   { href: "/configuracion", icon: Settings, label: "Configuración" },
