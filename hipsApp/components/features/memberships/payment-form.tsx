@@ -1,13 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ArrowLeftRight,
   Banknote,
   CalendarDays,
   Check,
   ChevronDown,
+  Copy,
   CreditCard,
+  Landmark,
+  MessageCircle,
+  X,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -20,6 +24,10 @@ import {
   formatCurrency,
   type PaymentMethod,
 } from "@/lib/payment";
+import {
+  transferMessage,
+  type TransferDetails,
+} from "@/lib/payment-settings";
 
 type Student = { id: string; nombre: string };
 type Plan = {
@@ -53,6 +61,7 @@ export function PaymentForm({
   plans,
   students,
   today,
+  transferDetails,
 }: {
   initialAmount?: string;
   initialMethod?: PaymentMethod;
@@ -62,6 +71,7 @@ export function PaymentForm({
   plans: Plan[];
   students: Student[];
   today: string;
+  transferDetails: TransferDetails;
 }) {
   const initialPlan = plans.find(({ id }) => id === initialPlanId);
   const defaultPlanId =
@@ -84,6 +94,9 @@ export function PaymentForm({
         : defaultPlan?.price.toFixed(2) ?? "0.00")
   );
   const [reference, setReference] = useState(initialReference);
+  const [showTransferDetails, setShowTransferDetails] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const transferOpenedRef = useRef(false);
   const selectedPlan = plans.find((plan) => plan.id === planId);
   const selectedStudent = students.find((student) => student.id === studentId);
   const expirationDate = selectedPlan
@@ -91,6 +104,7 @@ export function PaymentForm({
     : today;
   const amountValue = Number(amount) || 0;
   const change = calculateChange(amountValue, selectedPlan?.price ?? 0);
+  const transferText = transferMessage(transferDetails);
 
   function selectPlan(nextPlanId: string) {
     setPlanId(nextPlanId);
@@ -107,201 +121,315 @@ export function PaymentForm({
         ? "0.00"
         : selectedPlan?.price.toFixed(2) ?? "0.00"
     );
-    if (nextMethod !== "transferencia") setReference("");
+    if (nextMethod !== "transferencia") {
+      setReference("");
+      return;
+    }
+
+    if (!transferOpenedRef.current) {
+      transferOpenedRef.current = true;
+      setShowTransferDetails(true);
+    }
+  }
+
+  async function copyTransferDetails() {
+    try {
+      await navigator.clipboard.writeText(transferText);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  function shareTransferDetails() {
+    window.open(
+      `https://wa.me/?text=${encodeURIComponent(transferText)}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
   }
 
   return (
-    <form
-      action="/membresias/revisar"
-      method="get"
-      className="flex flex-1 flex-col"
-    >
-      <div>
-        <Label htmlFor="studentId" className="text-base">
-          Seleccionar alumno
-        </Label>
-        <div className="relative mt-2">
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute top-1/2 left-4 z-10 grid size-9 -translate-y-1/2 place-items-center rounded-full bg-[oklch(0.64_0.18_150)] text-xs font-bold text-[oklch(0.985_0.006_150)]"
-          >
-            {selectedStudent ? initials(selectedStudent.nombre) : "—"}
-          </span>
-          <select
-            id="studentId"
-            name="student"
-            required
-            value={studentId}
-            onChange={(event) => setStudentId(event.target.value)}
-            className="min-h-14 w-full appearance-none rounded-xl border border-input bg-card py-1 pr-12 pl-16 text-base outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            {students.map((student) => (
-              <option key={student.id} value={student.id}>
-                {student.nombre}
-              </option>
-            ))}
-          </select>
-          <ChevronDown
-            aria-hidden="true"
-            className="pointer-events-none absolute top-1/2 right-4 size-5 -translate-y-1/2 text-muted-foreground"
-          />
-        </div>
-      </div>
-
-      <fieldset className="mt-6">
-        <legend className="text-base font-semibold">Plan</legend>
-        <div className="mt-2 grid grid-cols-2 gap-3">
-          {plans.map((plan) => (
-            <label
-              key={plan.id}
-              className={`relative flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-2xl border p-3 text-center transition-colors ${
-                planId === plan.id
-                  ? "border-primary bg-primary/5 ring-1 ring-primary"
-                  : "border-border hover:bg-secondary"
-              }`}
-            >
-              <input
-                type="radio"
-                name="planId"
-                value={plan.id}
-                checked={planId === plan.id}
-                onChange={() => selectPlan(plan.id)}
-                className="sr-only"
-              />
-              {planId === plan.id ? (
-                <span className="absolute top-3 right-3 grid size-6 place-items-center rounded-full bg-primary text-primary-foreground">
-                  <Check className="size-4" aria-hidden="true" />
-                </span>
-              ) : null}
-              <span className="font-semibold">{plan.name}</span>
-              <span className="mt-1 text-2xl">
-                {formatCurrency(plan.price)}
-              </span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
-
-      <div className="mt-6 grid grid-cols-2 gap-3">
+    <>
+      <form
+        action="/membresias/revisar"
+        method="get"
+        className="flex flex-1 flex-col"
+      >
         <div>
-          <p className="text-base font-medium">Inicio</p>
-          <div
-            aria-label={`Inicio: ${formatIsoDate(today)}`}
-            className="relative mt-2 flex h-14 items-center rounded-xl border border-input bg-card pr-2 pl-10 text-sm"
-          >
-            <CalendarDays className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground" />
-            <time dateTime={today}>{formatIsoDate(today)}</time>
-          </div>
-        </div>
-        <div>
-          <p className="text-base font-medium">Vence</p>
-          <div
-            aria-label={`Vence: ${formatIsoDate(expirationDate)}`}
-            className="relative mt-2 flex h-14 items-center rounded-xl border border-input bg-card pr-2 pl-10 text-sm"
-          >
-            <CalendarDays className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground" />
-            <time dateTime={expirationDate}>
-              {formatIsoDate(expirationDate)}
-            </time>
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-6 grid grid-cols-2 gap-3">
-        <div>
-          <Label htmlFor="amount" className="text-base">
-            Monto pagado
+          <Label htmlFor="studentId" className="text-base">
+            Seleccionar alumno
           </Label>
           <div className="relative mt-2">
-            <span className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-lg font-semibold">
-              $
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute top-1/2 left-4 z-10 grid size-9 -translate-y-1/2 place-items-center rounded-full bg-[oklch(0.64_0.18_150)] text-xs font-bold text-[oklch(0.985_0.006_150)]"
+            >
+              {selectedStudent ? initials(selectedStudent.nombre) : "—"}
             </span>
-            <Input
-              id="amount"
-              name="amount"
-              type="number"
-              inputMode="decimal"
-              min={selectedPlan?.price ?? 0}
-              max="99999999.99"
-              step="0.01"
+            <select
+              id="studentId"
+              name="student"
               required
-              value={amount}
-              onChange={(event) => setAmount(event.target.value)}
-              className="h-14 rounded-xl pr-3 pl-8 text-lg font-semibold"
+              value={studentId}
+              onChange={(event) => setStudentId(event.target.value)}
+              className="min-h-14 w-full appearance-none rounded-xl border border-input bg-card py-1 pr-12 pl-16 text-base outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              {students.map((student) => (
+                <option key={student.id} value={student.id}>
+                  {student.nombre}
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              aria-hidden="true"
+              className="pointer-events-none absolute top-1/2 right-4 size-5 -translate-y-1/2 text-muted-foreground"
             />
           </div>
         </div>
-        <div>
-          <p className="text-base font-medium">Cambio</p>
-          <output
-            htmlFor="amount"
-            aria-live="polite"
-            className="mt-2 flex h-14 items-center rounded-xl border border-input bg-secondary/45 px-4 text-lg font-semibold"
-          >
-            {formatCurrency(change)}
-          </output>
-        </div>
-      </div>
 
-      <fieldset className="mt-6">
-        <legend className="text-base font-semibold">Método de pago</legend>
-        <div className="mt-2 grid grid-cols-3 gap-2">
-          {methods.map(({ value, label, icon: Icon }) => {
-            const isSelected = method === value;
-
-            return (
+        <fieldset className="mt-6">
+          <legend className="text-base font-semibold">Plan</legend>
+          <div className="mt-2 grid grid-cols-2 gap-3">
+            {plans.map((plan) => (
               <label
-                key={value}
-                className="has-checked:border-primary has-checked:bg-primary/5 has-checked:text-primary relative flex min-h-24 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-border px-1 text-center text-xs font-medium transition-colors hover:bg-secondary"
+                key={plan.id}
+                className={`relative flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-2xl border p-3 text-center transition-colors ${
+                  planId === plan.id
+                    ? "border-primary bg-primary/5 ring-1 ring-primary"
+                    : "border-border hover:bg-secondary"
+                }`}
               >
                 <input
                   type="radio"
-                  name="method"
-                  value={value}
-                  checked={isSelected}
-                  onChange={() => selectMethod(value)}
+                  name="planId"
+                  value={plan.id}
+                  checked={planId === plan.id}
+                  onChange={() => selectPlan(plan.id)}
                   className="sr-only"
                 />
-                {isSelected ? (
+                {planId === plan.id ? (
                   <span className="absolute top-3 right-3 grid size-6 place-items-center rounded-full bg-primary text-primary-foreground">
                     <Check className="size-4" aria-hidden="true" />
                   </span>
                 ) : null}
-                <Icon className="size-6" aria-hidden="true" />
-                {label}
+                <span className="font-semibold">{plan.name}</span>
+                <span className="mt-1 text-2xl">
+                  {formatCurrency(plan.price)}
+                </span>
               </label>
-            );
-          })}
-        </div>
-      </fieldset>
+            ))}
+          </div>
+        </fieldset>
 
-      {method === "transferencia" ? (
-        <div className="mt-4">
-          <Label htmlFor="reference" className="text-base">
-            Referencia{" "}
-            <span className="font-normal text-muted-foreground">(opcional)</span>
-          </Label>
-          <Input
-            id="reference"
-            name="reference"
-            maxLength={100}
-            value={reference}
-            onChange={(event) => setReference(event.target.value)}
-            placeholder="Ej. 1234567890"
-            className="mt-2 h-14 rounded-xl px-4 text-base"
-          />
+        <div className="mt-6 grid grid-cols-2 gap-3">
+          <div>
+            <p className="text-base font-medium">Inicio</p>
+            <div
+              aria-label={`Inicio: ${formatIsoDate(today)}`}
+              className="relative mt-2 flex h-14 items-center rounded-xl border border-input bg-card pr-2 pl-10 text-sm"
+            >
+              <CalendarDays className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground" />
+              <time dateTime={today}>{formatIsoDate(today)}</time>
+            </div>
+          </div>
+          <div>
+            <p className="text-base font-medium">Vence</p>
+            <div
+              aria-label={`Vence: ${formatIsoDate(expirationDate)}`}
+              className="relative mt-2 flex h-14 items-center rounded-xl border border-input bg-card pr-2 pl-10 text-sm"
+            >
+              <CalendarDays className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground" />
+              <time dateTime={expirationDate}>
+                {formatIsoDate(expirationDate)}
+              </time>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 grid grid-cols-2 gap-3">
+          <div>
+            <Label htmlFor="amount" className="text-base">
+              Monto pagado
+            </Label>
+            <div className="relative mt-2">
+              <span className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-lg font-semibold">
+                $
+              </span>
+              <Input
+                id="amount"
+                name="amount"
+                type="number"
+                inputMode="decimal"
+                min={selectedPlan?.price ?? 0}
+                max="99999999.99"
+                step="0.01"
+                required
+                value={amount}
+                onChange={(event) => setAmount(event.target.value)}
+                className="h-14 rounded-xl pr-3 pl-8 text-lg font-semibold"
+              />
+            </div>
+          </div>
+          <div>
+            <p className="text-base font-medium">Cambio</p>
+            <output
+              htmlFor="amount"
+              aria-live="polite"
+              className="mt-2 flex h-14 items-center rounded-xl border border-input bg-secondary/45 px-4 text-lg font-semibold"
+            >
+              {formatCurrency(change)}
+            </output>
+          </div>
+        </div>
+
+        <fieldset className="mt-6">
+          <legend className="text-base font-semibold">Método de pago</legend>
+          <div className="mt-2 grid grid-cols-3 gap-2">
+            {methods.map(({ value, label, icon: Icon }) => {
+              const isSelected = method === value;
+
+              return (
+                <label
+                  key={value}
+                  className="has-checked:border-primary has-checked:bg-primary/5 has-checked:text-primary relative flex min-h-24 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-border px-1 text-center text-xs font-medium transition-colors hover:bg-secondary"
+                >
+                  <input
+                    type="radio"
+                    name="method"
+                    value={value}
+                    checked={isSelected}
+                    onChange={() => selectMethod(value)}
+                    className="sr-only"
+                  />
+                  {isSelected ? (
+                    <span className="absolute top-3 right-3 grid size-6 place-items-center rounded-full bg-primary text-primary-foreground">
+                      <Check className="size-4" aria-hidden="true" />
+                    </span>
+                  ) : null}
+                  <Icon className="size-6" aria-hidden="true" />
+                  {label}
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
+
+        {method === "transferencia" ? (
+          <div className="mt-4">
+            <div className="flex items-center justify-between gap-3">
+              <Label htmlFor="reference" className="text-base">
+                Referencia{" "}
+                <span className="font-normal text-muted-foreground">(opcional)</span>
+              </Label>
+              <button
+                type="button"
+                onClick={() => setShowTransferDetails(true)}
+                className="text-sm font-semibold text-primary"
+              >
+                Ver datos bancarios
+              </button>
+            </div>
+            <Input
+              id="reference"
+              name="reference"
+              maxLength={100}
+              value={reference}
+              onChange={(event) => setReference(event.target.value)}
+              placeholder="Ej. 1234567890"
+              className="mt-2 h-14 rounded-xl px-4 text-base"
+            />
+          </div>
+        ) : null}
+
+        <div className="mt-auto pt-5">
+          <Button
+            type="submit"
+            disabled={!students.length || !plans.length}
+            className="min-h-14 w-full rounded-xl text-base"
+          >
+            Revisar pago
+          </Button>
+        </div>
+      </form>
+
+      {showTransferDetails ? (
+        <div className="fixed inset-0 z-[80] grid place-items-end bg-foreground/40 p-2 sm:place-items-center sm:p-5">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="transfer-title"
+            className="w-full max-w-md rounded-[2rem] bg-card p-5 shadow-2xl sm:p-6"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <span className="grid size-12 place-items-center rounded-full bg-[oklch(0.93_0.07_150)] text-[oklch(0.48_0.16_150)]">
+                <Landmark className="size-6" />
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowTransferDetails(false)}
+                aria-label="Cerrar datos de transferencia"
+                className="grid size-10 place-items-center rounded-full hover:bg-secondary"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            <h2 id="transfer-title" className="mt-4 text-2xl font-bold tracking-tight">
+              Datos para transferencia
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Compártelos con el alumno antes de registrar la referencia.
+            </p>
+
+            <dl className="mt-5 overflow-hidden rounded-2xl border bg-secondary/25 divide-y">
+              <div className="px-4 py-3">
+                <dt className="text-xs text-muted-foreground">Banco</dt>
+                <dd className="font-semibold">{transferDetails.bank}</dd>
+              </div>
+              <div className="px-4 py-3">
+                <dt className="text-xs text-muted-foreground">Titular</dt>
+                <dd className="font-semibold">{transferDetails.holder}</dd>
+              </div>
+              <div className="px-4 py-3">
+                <dt className="text-xs text-muted-foreground">Tarjeta</dt>
+                <dd className="break-all font-mono font-semibold">{transferDetails.card}</dd>
+              </div>
+              <div className="px-4 py-3">
+                <dt className="text-xs text-muted-foreground">CLABE interbancaria</dt>
+                <dd className="break-all font-mono font-semibold">{transferDetails.clabe}</dd>
+              </div>
+            </dl>
+
+            <div className="mt-5 grid gap-3">
+              <button
+                type="button"
+                onClick={shareTransferDetails}
+                className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[oklch(0.55_0.19_150)] px-4 font-semibold text-white"
+              >
+                <MessageCircle className="size-5" />
+                Compartir por WhatsApp
+              </button>
+              <button
+                type="button"
+                onClick={copyTransferDetails}
+                className="flex min-h-12 items-center justify-center gap-2 rounded-xl border px-4 font-semibold hover:bg-secondary"
+              >
+                <Copy className="size-5" />
+                {copied ? "Datos copiados" : "Copiar datos"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowTransferDetails(false)}
+                className="min-h-12 rounded-xl text-sm font-semibold text-primary"
+              >
+                Continuar con el pago
+              </button>
+            </div>
+          </section>
         </div>
       ) : null}
-
-      <div className="mt-auto pt-5">
-        <Button
-          type="submit"
-          disabled={!students.length || !plans.length}
-          className="min-h-14 w-full rounded-xl text-base"
-        >
-          Revisar pago
-        </Button>
-      </div>
-    </form>
+    </>
   );
 }
