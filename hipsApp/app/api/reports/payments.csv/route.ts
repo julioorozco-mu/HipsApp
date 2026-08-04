@@ -80,12 +80,12 @@ export async function GET(request: NextRequest) {
     .join("\r\n");
   const filename = `pagos-${filters.from}-a-${filters.to}.csv`;
 
-  return new NextResponse(new TextEncoder().encode(csv), {
+  return new NextResponse(Buffer.from(csv, "latin1"), {
     headers: {
       "Cache-Control": "private, no-store, max-age=0",
       "Content-Disposition": `attachment; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
       "Content-Language": "es-MX",
-      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Type": "text/csv; charset=windows-1252",
       "X-Content-Type-Options": "nosniff",
     },
   });
