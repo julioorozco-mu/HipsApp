@@ -20,10 +20,14 @@ const displayDateFormatter = new Intl.DateTimeFormat("es-MX", {
 export default async function NewStudentPage({
   searchParams,
 }: {
-  searchParams: Promise<{ creado?: string | string[] }>;
+  searchParams: Promise<{
+    creado?: string | string[];
+    origen?: string | string[];
+  }>;
 }) {
-  const { creado } = await searchParams;
+  const { creado, origen } = await searchParams;
   const createdStudentId = typeof creado === "string" ? creado : null;
+  const fromUsers = origen === "usuarios";
   const supabase = await createClient();
   const {
     data: { user },
@@ -44,6 +48,10 @@ export default async function NewStudentPage({
   }
 
   const today = todayFormatter.format(new Date());
+  const backHref = fromUsers ? "/usuarios" : "/alumnos";
+  const addAnotherHref = fromUsers
+    ? "/usuarios/nuevo?tipo=alumno"
+    : "/alumnos/nuevo";
 
   return (
     <main className="min-h-dvh bg-[oklch(0.965_0.018_300)] p-2 sm:p-5">
@@ -51,8 +59,8 @@ export default async function NewStudentPage({
         <div className="flex flex-1 flex-col px-4 pt-5 pb-6 sm:px-7 sm:pt-9">
           <header className="grid grid-cols-[3rem_1fr_3rem] items-center">
             <Link
-              href="/alumnos"
-              aria-label="Volver a alumnos"
+              href={backHref}
+              aria-label={fromUsers ? "Volver a usuarios" : "Volver a alumnos"}
               className="grid size-12 place-items-center rounded-full transition-colors hover:bg-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary active:bg-accent"
             >
               <ArrowLeft className="size-7" aria-hidden="true" />
@@ -93,7 +101,7 @@ export default async function NewStudentPage({
                   Ver perfil
                 </Link>
                 <Link
-                  href="/alumnos/nuevo"
+                  href={addAnotherHref}
                   className="flex min-h-14 items-center justify-center rounded-xl border border-primary bg-card px-5 text-base font-semibold text-primary transition-colors hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary active:bg-primary/10"
                 >
                   Agregar otro alumno
@@ -112,4 +120,3 @@ export default async function NewStudentPage({
     </main>
   );
 }
-
