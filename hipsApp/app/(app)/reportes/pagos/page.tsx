@@ -3,7 +3,6 @@ import {
   ArrowLeft,
   Banknote,
   CreditCard,
-  Download,
   FileText,
   Landmark,
   ReceiptText,
@@ -12,6 +11,10 @@ import {
 import { redirect } from "next/navigation";
 
 import { AppNav } from "@/components/app-nav";
+import {
+  PaymentExportButtons,
+  PaymentExportIconButton,
+} from "@/components/features/memberships/payment-export-buttons";
 import { formatCurrency, PAYMENT_METHOD_LABEL } from "@/lib/payment";
 import {
   loadPaymentReport,
@@ -66,6 +69,7 @@ export default async function PaymentReportsPage({
     plan: filters.plan,
     to: filters.to,
   });
+  const exportQuery = exportParams.toString();
 
   return (
     <main className="min-h-dvh bg-[oklch(0.965_0.018_300)] p-2 sm:p-5">
@@ -82,13 +86,7 @@ export default async function PaymentReportsPage({
             <h1 className="text-center text-2xl font-bold tracking-[-0.035em]">
               Reportes de pagos
             </h1>
-            <Link
-              href={`/api/reports/payments.csv?${exportParams.toString()}`}
-              aria-label="Descargar reporte CSV"
-              className="grid size-12 place-items-center rounded-full text-primary hover:bg-secondary"
-            >
-              <Download className="size-6" />
-            </Link>
+            <PaymentExportIconButton query={exportQuery} />
           </header>
 
           <form className="mt-5 grid gap-3 rounded-2xl border bg-secondary/35 p-4">
@@ -175,25 +173,19 @@ export default async function PaymentReportsPage({
           </section>
 
           <section className="mt-5" aria-labelledby="payment-ledger-title">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div>
-                <h2 id="payment-ledger-title" className="text-lg font-bold">
-                  Historial de pagos
-                </h2>
-                <p className="text-xs text-muted-foreground">
-                  Registro compartido entre Superadmin y Administradores.
-                </p>
-              </div>
-              <Link
-                href={`/api/reports/payments.csv?${exportParams.toString()}`}
-                className="shrink-0 text-sm font-semibold text-primary"
-              >
-                Exportar CSV
-              </Link>
+            <div className="mb-3">
+              <h2 id="payment-ledger-title" className="text-lg font-bold">
+                Historial de pagos
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Registro compartido entre Superadmin y Administradores.
+              </p>
             </div>
 
+            <PaymentExportButtons query={exportQuery} />
+
             {report.rows.length ? (
-              <ul className="overflow-hidden rounded-2xl border bg-card divide-y">
+              <ul className="mt-3 divide-y overflow-hidden rounded-2xl border bg-card">
                 {report.rows.map((row) => (
                   <li key={row.id} className="px-4 py-4">
                     <div className="flex items-start justify-between gap-3">
@@ -227,7 +219,7 @@ export default async function PaymentReportsPage({
                 ))}
               </ul>
             ) : (
-              <div className="rounded-2xl border border-dashed px-5 py-12 text-center">
+              <div className="mt-3 rounded-2xl border border-dashed px-5 py-12 text-center">
                 <ReceiptText className="mx-auto size-9 text-muted-foreground" />
                 <p className="mt-3 font-semibold">No hay pagos en este periodo</p>
                 <p className="mt-1 text-sm text-muted-foreground">
