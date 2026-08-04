@@ -3,12 +3,14 @@
 import Link from "next/link";
 import {
   type PointerEvent as ReactPointerEvent,
+  useActionState,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
 import {
+  AlertTriangle,
   ChevronRight,
   GraduationCap,
   LockKeyhole,
@@ -16,8 +18,14 @@ import {
   Search,
   ShieldCheck,
   ShieldEllipsis,
+  Trash2,
+  X,
 } from "lucide-react";
 
+import {
+  deleteManagedUser,
+  type ManageUserState,
+} from "@/app/actions/users";
 import { Input } from "@/components/ui/input";
 import type { AppRole } from "@/lib/roles";
 
@@ -33,14 +41,28 @@ export type ManagedUserItem = {
   role: AppRole;
 };
 
-type Filter = "todos" | "administradores" | "alumnos";
+type RoleFilter = "todos" | "administradores" | "alumnos";
+type MembershipFilter =
+  | "todos"
+  | "activa"
+  | "por_vencer"
+  | "vencida"
+  | "sin_registro";
+type SortMode = "role_az" | "az" | "za";
 
-const filters: { label: string; value: Filter }[] = [
+const roleFilters: { label: string; value: RoleFilter }[] = [
   { label: "Todos", value: "todos" },
   { label: "Administradores", value: "administradores" },
   { label: "Alumnos", value: "alumnos" },
 ];
-const EDIT_ACTION_WIDTH = 92;
+const ACTIONS_WIDTH = 184;
+const initialDeleteState: ManageUserState = { error: null };
+const roleRank: Record<AppRole, number> = {
+  superadmin: 0,
+  admin: 1,
+  instructor: 1,
+  alumno: 2,
+};
 
 const membershipMeta: Record<string, { label: string; className: string }> = {
   activa: {
@@ -69,7 +91,7 @@ function roleMeta(role: AppRole) {
       badge: "bg-[oklch(0.92_0.08_295)] text-primary",
     };
   }
-  if (role === "admin") {
+  if (role === "admin" || role === "instructor") {
     return {
       icon: ShieldEllipsis,
       label: "Administrador",
@@ -127,11 +149,81 @@ function UserContent({ user }: { user: ManagedUserItem }) {
   );
 }
 
-function SwipeStudentRow({
+function DeleteUserDialog({
+  onClose,
+  user,
+}: {
+  onClose: () => void;
+  user: ManagedUserItem;
+}) {
+  const [state, action, pending] = useActionState(
+    deleteManagedUser,
+    initialDeleteState
+  );
+
+  return (
+    <div className="fixed inset-0 z-[90] grid place-items-end bg-foreground/40 p-2 sm:place-items-center sm:p-5">
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-user-title"
+        className="w-full max-w-md rounded-[2rem] bg-card p-5 shadow-2xl sm:p-6"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <span className="grid size-12 place-items-center rounded-full bg-destructive/10 text-destructive">
+            <AlertTriangle className="size-6" />
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Cerrar confirmación"
+            className="grid size-10 place-items-center rounded-full hover:bg-secondary"
+          >
+            <X className="size-5" />
+          </button>
+        </div>
+        <h2 id="delete-user-title" className="mt-4 text-2xl font-bold tracking-tight">
+          ¿Eliminar a {user.fullName}?
+        </h2>
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+          {user.role === "alumno"
+            ? "Se eliminarán su acceso y su registro de alumno. Si tiene pagos históricos, HipsApp bloqueará la eliminación."
+            : "Se eliminará definitivamente su acceso como Administrador."}
+        </p>
+
+        <form action={action} className="mt-5 grid gap-3">
+          <input name="user_id" type="hidden" value={user.id} />
+          {state.error ? (
+            <p role="alert" className="rounded-xl bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
+              {state.error}
+            </p>
+          ) : null}
+          <button
+            disabled={pending}
+            className="min-h-12 rounded-xl bg-destructive px-4 font-semibold text-destructive-foreground disabled:opacity-60"
+          >
+            {pending ? "Eliminando…" : "Sí, eliminar usuario"}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="min-h-12 rounded-xl border px-4 font-semibold hover:bg-secondary"
+          >
+            Cancelar
+          </button>
+        </form>
+      </section>
+    </div>
+  );
+}
+
+function SwipeUserRow({
+  onDelete,
   open,
   onOpenChange,
   user,
 }: {
+  onDelete: () => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   user: ManagedUserItem;
@@ -141,16 +233,17 @@ function SwipeStudentRow({
   const startOffsetRef = useRef(0);
   const offsetRef = useRef(0);
   const movedRef = useRef(false);
-  const [offset, setOffset] = useState(open ? -EDIT_ACTION_WIDTH : 0);
+  const [offset, setOffset] = useState(open ? -ACTIONS_WIDTH : 0);
+  const frontHref = user.role === "alumno" ? `/alumnos/${user.id}` : user.editHref;
 
   function updateOffset(next: number) {
-    const clamped = Math.max(-EDIT_ACTION_WIDTH, Math.min(0, next));
+    const clamped = Math.max(-ACTIONS_WIDTH, Math.min(0, next));
     offsetRef.current = clamped;
     setOffset(clamped);
   }
 
   useEffect(() => {
-    updateOffset(open ? -EDIT_ACTION_WIDTH : 0);
+    updateOffset(open ? -ACTIONS_WIDTH : 0);
   }, [open]);
 
   useEffect(() => {
@@ -194,39 +287,50 @@ function SwipeStudentRow({
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
-    onOpenChange(offsetRef.current <= -EDIT_ACTION_WIDTH / 2);
+    onOpenChange(offsetRef.current <= -ACTIONS_WIDTH / 2);
   }
 
   function cancelGesture() {
     startXRef.current = null;
     movedRef.current = false;
-    updateOffset(open ? -EDIT_ACTION_WIDTH : 0);
+    updateOffset(open ? -ACTIONS_WIDTH : 0);
   }
 
   return (
     <li ref={rowRef} className="relative overflow-hidden bg-card">
-      <Link
-        href={user.editHref}
-        aria-label={`Editar a ${user.fullName}`}
-        onFocus={() => onOpenChange(true)}
-        className="absolute inset-y-0 right-0 grid w-[92px] place-items-center bg-primary text-sm font-semibold text-primary-foreground focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-background"
-      >
-        <span className="grid place-items-center gap-1">
-          <Pencil className="size-5" />
-          Editar
-        </span>
-      </Link>
+      <div className="absolute inset-y-0 right-0 flex w-[184px]">
+        <Link
+          href={user.editHref}
+          aria-label={`Editar a ${user.fullName}`}
+          onFocus={() => onOpenChange(true)}
+          className="grid w-[92px] place-items-center bg-primary text-sm font-semibold text-primary-foreground focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-background"
+        >
+          <span className="grid place-items-center gap-1">
+            <Pencil className="size-5" />
+            Editar
+          </span>
+        </Link>
+        <button
+          type="button"
+          aria-label={`Eliminar a ${user.fullName}`}
+          onFocus={() => onOpenChange(true)}
+          onClick={onDelete}
+          className="grid w-[92px] place-items-center bg-destructive text-sm font-semibold text-destructive-foreground focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-background"
+        >
+          <span className="grid place-items-center gap-1">
+            <Trash2 className="size-5" />
+            Eliminar
+          </span>
+        </button>
+      </div>
 
       <Link
-        href={`/alumnos/${user.id}`}
-        aria-label={`Ver perfil de ${user.fullName}`}
+        href={frontHref}
+        aria-label={user.role === "alumno" ? `Ver perfil de ${user.fullName}` : `Editar a ${user.fullName}`}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={finishGesture}
         onPointerCancel={cancelGesture}
-        onBlur={() => {
-          if (startXRef.current === null && open) onOpenChange(false);
-        }}
         onClick={(event) => {
           if (movedRef.current || open) {
             event.preventDefault();
@@ -246,28 +350,45 @@ function SwipeStudentRow({
 
 export function UserList({ users }: { users: ManagedUserItem[] }) {
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<Filter>("todos");
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>("todos");
+  const [membershipFilter, setMembershipFilter] =
+    useState<MembershipFilter>("todos");
+  const [sortMode, setSortMode] = useState<SortMode>("role_az");
   const [openUserId, setOpenUserId] = useState<string | null>(null);
+  const [deletingUser, setDeletingUser] = useState<ManagedUserItem | null>(null);
 
   const visibleUsers = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("es-MX");
-    return users.filter((user) => {
+    const filtered = users.filter((user) => {
       const matchesText =
         user.fullName.toLocaleLowerCase("es-MX").includes(normalized) ||
         (user.email ?? "").toLocaleLowerCase("es-MX").includes(normalized) ||
         (user.phone ?? "").includes(normalized);
       const matchesRole =
-        filter === "todos" ||
-        (filter === "administradores" &&
-          ["superadmin", "admin"].includes(user.role)) ||
-        (filter === "alumnos" && user.role === "alumno");
-      return matchesText && matchesRole;
+        roleFilter === "todos" ||
+        (roleFilter === "administradores" &&
+          ["superadmin", "admin", "instructor"].includes(user.role)) ||
+        (roleFilter === "alumnos" && user.role === "alumno");
+      const matchesMembership =
+        membershipFilter === "todos" ||
+        (user.role === "alumno" &&
+          (user.membershipStatus ?? "sin_registro") === membershipFilter);
+      return matchesText && matchesRole && matchesMembership;
     });
-  }, [filter, query, users]);
+
+    return filtered.sort((a, b) => {
+      const alphabetical = a.fullName.localeCompare(b.fullName, "es-MX", {
+        sensitivity: "base",
+      });
+      if (sortMode === "az") return alphabetical;
+      if (sortMode === "za") return -alphabetical;
+      return roleRank[a.role] - roleRank[b.role] || alphabetical;
+    });
+  }, [membershipFilter, query, roleFilter, sortMode, users]);
 
   useEffect(() => {
     setOpenUserId(null);
-  }, [filter, query]);
+  }, [membershipFilter, query, roleFilter, sortMode]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -283,15 +404,15 @@ export function UserList({ users }: { users: ManagedUserItem[] }) {
         />
       </div>
 
-      <div className="mt-3 flex shrink-0 gap-2 overflow-x-auto pb-1" aria-label="Filtrar usuarios">
-        {filters.map(({ value, label }) => (
+      <div className="mt-3 flex shrink-0 gap-2 overflow-x-auto pb-1" aria-label="Filtrar usuarios por rol">
+        {roleFilters.map(({ value, label }) => (
           <button
             key={value}
             type="button"
-            aria-pressed={filter === value}
-            onClick={() => setFilter(value)}
+            aria-pressed={roleFilter === value}
+            onClick={() => setRoleFilter(value)}
             className={`min-h-10 shrink-0 rounded-full px-4 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
-              filter === value
+              roleFilter === value
                 ? "bg-primary text-primary-foreground"
                 : "border border-border bg-secondary/60 hover:bg-secondary"
             }`}
@@ -301,7 +422,42 @@ export function UserList({ users }: { users: ManagedUserItem[] }) {
         ))}
       </div>
 
-      <div className="mt-3 min-h-0 overflow-y-auto overscroll-contain rounded-2xl border bg-card">
+      <div className="mt-2 grid shrink-0 grid-cols-2 gap-2">
+        <label className="grid gap-1 text-xs font-semibold text-muted-foreground">
+          Orden
+          <select
+            value={sortMode}
+            onChange={(event) => setSortMode(event.target.value as SortMode)}
+            className="min-h-11 rounded-xl border bg-card px-3 text-sm font-medium text-foreground"
+          >
+            <option value="role_az">Rol · A–Z</option>
+            <option value="az">Nombre · A–Z</option>
+            <option value="za">Nombre · Z–A</option>
+          </select>
+        </label>
+        <label className="grid gap-1 text-xs font-semibold text-muted-foreground">
+          Membresía
+          <select
+            value={membershipFilter}
+            onChange={(event) =>
+              setMembershipFilter(event.target.value as MembershipFilter)
+            }
+            className="min-h-11 rounded-xl border bg-card px-3 text-sm font-medium text-foreground"
+          >
+            <option value="todos">Todos los estados</option>
+            <option value="activa">Activa</option>
+            <option value="por_vencer">Por vencer</option>
+            <option value="vencida">Vencida</option>
+            <option value="sin_registro">Sin membresía</option>
+          </select>
+        </label>
+      </div>
+
+      <p className="mt-2 text-xs text-muted-foreground">
+        Desliza un registro hacia la izquierda para editarlo o eliminarlo.
+      </p>
+
+      <div className="mt-2 min-h-0 overflow-y-auto overscroll-contain rounded-2xl border bg-card">
         {visibleUsers.length ? (
           <ul className="divide-y">
             {visibleUsers.map((user) => {
@@ -319,28 +475,17 @@ export function UserList({ users }: { users: ManagedUserItem[] }) {
                 );
               }
 
-              if (user.role === "alumno") {
-                return (
-                  <SwipeStudentRow
-                    key={user.id}
-                    user={user}
-                    open={openUserId === user.id}
-                    onOpenChange={(open) => setOpenUserId(open ? user.id : null)}
-                  />
-                );
-              }
-
               return (
-                <li key={user.id}>
-                  <Link
-                    href={user.editHref}
-                    aria-label={`Editar a ${user.fullName}`}
-                    className="grid min-h-24 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 transition-colors hover:bg-secondary/60 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary active:bg-secondary"
-                  >
-                    <UserContent user={user} />
-                    <ChevronRight className="size-5 text-muted-foreground" />
-                  </Link>
-                </li>
+                <SwipeUserRow
+                  key={user.id}
+                  user={user}
+                  open={openUserId === user.id}
+                  onOpenChange={(open) => setOpenUserId(open ? user.id : null)}
+                  onDelete={() => {
+                    setOpenUserId(null);
+                    setDeletingUser(user);
+                  }}
+                />
               );
             })}
           </ul>
@@ -350,6 +495,14 @@ export function UserList({ users }: { users: ManagedUserItem[] }) {
           </p>
         )}
       </div>
+
+      {deletingUser ? (
+        <DeleteUserDialog
+          key={deletingUser.id}
+          user={deletingUser}
+          onClose={() => setDeletingUser(null)}
+        />
+      ) : null}
     </div>
   );
 }
