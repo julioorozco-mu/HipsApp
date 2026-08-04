@@ -76,7 +76,7 @@ export default async function MembershipsPage() {
     throw new Error(`No se pudieron cargar las membresías: ${loadError.message}`);
   }
 
-  const students = studentsResult.data.flatMap((student) => {
+  const students = (studentsResult.data ?? []).flatMap((student) => {
     if (!student.id || !student.nombre) return [];
     const status = statuses.includes(student.membership_status as MembershipStatus)
       ? (student.membership_status as MembershipStatus)
