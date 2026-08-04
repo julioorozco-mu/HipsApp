@@ -60,7 +60,6 @@ const initialDeleteState: ManageUserState = { error: null };
 const roleRank: Record<AppRole, number> = {
   superadmin: 0,
   admin: 1,
-  instructor: 1,
   alumno: 2,
 };
 
@@ -91,7 +90,7 @@ function roleMeta(role: AppRole) {
       badge: "bg-[oklch(0.92_0.08_295)] text-primary",
     };
   }
-  if (role === "admin" || role === "instructor") {
+  if (role === "admin") {
     return {
       icon: ShieldEllipsis,
       label: "Administrador",
@@ -367,7 +366,7 @@ export function UserList({ users }: { users: ManagedUserItem[] }) {
       const matchesRole =
         roleFilter === "todos" ||
         (roleFilter === "administradores" &&
-          ["superadmin", "admin", "instructor"].includes(user.role)) ||
+          ["superadmin", "admin"].includes(user.role)) ||
         (roleFilter === "alumnos" && user.role === "alumno");
       const matchesMembership =
         membershipFilter === "todos" ||
