@@ -107,13 +107,17 @@ export default async function StudentProfilePage(
             >
               <ArrowLeft className="size-7" />
             </Link>
-            <button
-              type="button"
-              aria-label="Más opciones"
-              className="grid size-12 place-items-center rounded-full transition-colors hover:bg-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary active:bg-accent"
-            >
-              <MoreHorizontal className="size-7" />
-            </button>
+            {canManage ? (
+              <Link
+                href={`/alumnos/${student.id}/editar`}
+                aria-label="Editar alumno"
+                className="grid size-12 place-items-center rounded-full transition-colors hover:bg-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary active:bg-accent"
+              >
+                <MoreHorizontal className="size-7" />
+              </Link>
+            ) : (
+              <span className="size-12" aria-hidden="true" />
+            )}
           </header>
 
           <section className="mt-1 text-center" aria-labelledby="student-name">

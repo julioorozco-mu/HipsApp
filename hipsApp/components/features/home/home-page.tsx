@@ -1,6 +1,8 @@
 import Link from "next/link";
 import {
+  BadgeDollarSign,
   CalendarDays,
+  ChartNoAxesCombined,
   Clock3,
   Flame,
   UserRoundCheck,
@@ -13,7 +15,7 @@ import {
   type HomeNotification,
 } from "@/components/features/home/notification-center";
 import { Card } from "@/components/ui/card";
-import { normalizeRole } from "@/lib/roles";
+import { canManageOperations, normalizeRole } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
 
 const classTimeFormatter = new Intl.DateTimeFormat("es-MX", {
@@ -72,6 +74,7 @@ export default async function HomePage() {
   const profile = results?.[3].data ?? null;
   const role = normalizeRole(profile?.role);
   const isSuperadmin = role === "superadmin";
+  const canManage = canManageOperations(role);
   const classStreak = profile?.current_class_streak ?? 0;
   const nextClassTime = nextSession?.starts_at
     ? classTimeFormatter.format(new Date(nextSession.starts_at))
@@ -106,7 +109,7 @@ export default async function HomePage() {
   return (
     <main className="min-h-dvh bg-[oklch(0.965_0.018_300)] p-2 sm:p-5">
       <div className="mx-auto flex min-h-[calc(100dvh-1rem)] w-full max-w-lg flex-col overflow-hidden rounded-[2.5rem] bg-card shadow-[0_18px_50px_oklch(0.25_0.04_300/0.14)] sm:min-h-[calc(100dvh-2.5rem)]">
-        <div className="flex-1 px-5 pt-6 pb-7 sm:px-8 sm:pt-12">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-6 pb-7 sm:px-8 sm:pt-12">
           <header className="flex items-center justify-between gap-3">
             <h1 className="min-w-0 text-[clamp(1.7rem,8vw,2.25rem)] leading-tight font-bold tracking-[-0.04em]">
               Hola{displayName ? `, ${displayName}` : ""}{" "}
@@ -190,6 +193,24 @@ export default async function HomePage() {
                   {peopleLabel}
                 </span>
               </Link>
+              {canManage ? (
+                <>
+                  <Link
+                    href="/membresias"
+                    className="flex h-[6.75rem] flex-col items-center justify-center gap-2 rounded-3xl bg-[oklch(0.96_0.05_115)] px-4 py-2 text-center text-lg font-semibold leading-tight transition-colors hover:bg-[oklch(0.93_0.08_115)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                  >
+                    <BadgeDollarSign className="size-10" strokeWidth={2.2} />
+                    <span>Membresías</span>
+                  </Link>
+                  <Link
+                    href="/reportes/pagos"
+                    className="flex h-[6.75rem] flex-col items-center justify-center gap-2 rounded-3xl bg-[oklch(0.95_0.04_250)] px-4 py-2 text-center text-lg font-semibold leading-tight transition-colors hover:bg-[oklch(0.92_0.07_250)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                  >
+                    <ChartNoAxesCombined className="size-10" strokeWidth={2.2} />
+                    <span>Reporte de pagos</span>
+                  </Link>
+                </>
+              ) : null}
             </div>
           </section>
 

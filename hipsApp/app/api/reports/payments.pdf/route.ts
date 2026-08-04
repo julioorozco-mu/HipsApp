@@ -1,32 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { PAYMENT_METHOD_LABEL } from "@/lib/payment";
 import {
   loadPaymentReport,
   normalizePaymentReportFilters,
 } from "@/lib/payment-report";
+import { createPaymentReportPdf } from "@/lib/payment-report-pdf";
 import { canManageOperations, normalizeRole } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
-
-const reportDateFormatter = new Intl.DateTimeFormat("es-MX", {
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-  hour12: false,
-  timeZone: "America/Mexico_City",
-});
-
-function csvCell(value: string | number | null) {
-  const text = value == null ? "" : String(value);
-  return `"${text.replace(/"/g, '""')}"`;
-}
-
-function formatReportDate(value: string) {
-  return reportDateFormatter.format(new Date(value)).replace(",", "");
-}
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -52,40 +32,14 @@ export async function GET(request: NextRequest) {
     to: search.get("to") ?? undefined,
   });
   const report = await loadPaymentReport(filters);
+  const pdf = await createPaymentReportPdf({ filters, report });
+  const filename = `pagos-${filters.from}-a-${filters.to}.pdf`;
 
-  const header = [
-    "Fecha y hora",
-    "Alumno",
-    "Plan",
-    "Método",
-    "Importe",
-    "Monto recibido",
-    "Referencia",
-    "Registrado por",
-    "ID de pago",
-  ];
-  const rows = report.rows.map((row) => [
-    formatReportDate(row.paidAt),
-    row.studentName,
-    row.planName,
-    PAYMENT_METHOD_LABEL[row.method],
-    row.amount.toFixed(2),
-    row.amountReceived.toFixed(2),
-    row.reference,
-    row.recordedBy,
-    row.id,
-  ]);
-  const csv = [header, ...rows]
-    .map((row) => row.map(csvCell).join(","))
-    .join("\r\n");
-  const filename = `pagos-${filters.from}-a-${filters.to}.csv`;
-
-  return new NextResponse(Buffer.from(csv, "latin1"), {
+  return new NextResponse(Buffer.from(pdf), {
     headers: {
       "Cache-Control": "private, no-store, max-age=0",
       "Content-Disposition": `attachment; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
-      "Content-Language": "es-MX",
-      "Content-Type": "text/csv; charset=windows-1252",
+      "Content-Type": "application/pdf",
       "X-Content-Type-Options": "nosniff",
     },
   });
