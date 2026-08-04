@@ -1,8 +1,9 @@
-import { ChevronRight, MoreHorizontal } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { AppNav } from "@/components/app-nav";
+import { PaymentActionsMenu } from "@/components/features/memberships/payment-actions-menu";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import {
@@ -10,6 +11,7 @@ import {
   MEMBERSHIP_STATUS_LABEL,
   type MembershipStatus,
 } from "@/lib/membership";
+import { canManageOperations, normalizeRole } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
 
 const dateFormatter = new Intl.DateTimeFormat("es-MX", {
@@ -58,17 +60,23 @@ export default async function MembershipsPage() {
 
   if (!user) redirect("/acceso");
 
-  const { data, error } = await supabase
-    .from("student_overview")
-    .select("id, nombre, fecha_vencimiento, membership_status")
-    .eq("active", true)
-    .order("fecha_vencimiento");
+  const [profileResult, studentsResult] = await Promise.all([
+    supabase.from("profiles").select("role").eq("id", user.id).maybeSingle(),
+    supabase
+      .from("student_overview")
+      .select("id, nombre, fecha_vencimiento, membership_status")
+      .eq("active", true)
+      .order("fecha_vencimiento"),
+  ]);
+  const role = normalizeRole(profileResult.data?.role);
+  if (!canManageOperations(role)) redirect("/");
 
-  if (error) {
-    throw new Error(`No se pudieron cargar las membresías: ${error.message}`);
+  const loadError = profileResult.error ?? studentsResult.error;
+  if (loadError) {
+    throw new Error(`No se pudieron cargar las membresías: ${loadError.message}`);
   }
 
-  const students = data.flatMap((student) => {
+  const students = studentsResult.data.flatMap((student) => {
     if (!student.id || !student.nombre) return [];
     const status = statuses.includes(student.membership_status as MembershipStatus)
       ? (student.membership_status as MembershipStatus)
@@ -84,13 +92,7 @@ export default async function MembershipsPage() {
             <h1 className="text-[2rem] leading-tight font-bold tracking-[-0.04em] sm:text-4xl">
               Membresías
             </h1>
-            <button
-              type="button"
-              aria-label="Más opciones"
-              className="grid size-12 place-items-center rounded-full transition-colors hover:bg-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary active:bg-accent"
-            >
-              <MoreHorizontal className="size-7" />
-            </button>
+            <PaymentActionsMenu canConfigure={role === "superadmin"} />
           </header>
 
           <section
@@ -197,4 +199,3 @@ export default async function MembershipsPage() {
     </main>
   );
 }
-
