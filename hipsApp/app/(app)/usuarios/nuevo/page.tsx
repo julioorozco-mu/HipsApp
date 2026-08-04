@@ -7,19 +7,28 @@ import { UserForm } from "@/components/features/users/user-form";
 import { normalizeRole } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
 
-export default async function NewUserPage() {
+export default async function NewUserPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tipo?: string }>;
+}) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/acceso");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .maybeSingle();
+  const [{ data: profile }, params] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle(),
+    searchParams,
+  ]);
   if (normalizeRole(profile?.role) !== "superadmin") redirect("/");
+
+  const initialRole = params.tipo === "alumno" ? "alumno" : "admin";
 
   return (
     <main className="min-h-dvh bg-[oklch(0.965_0.018_300)] p-2 sm:p-5">
@@ -45,11 +54,10 @@ export default async function NewUserPage() {
         </header>
 
         <div className="flex flex-1 flex-col px-5 pt-6 pb-4 sm:px-8">
-          <UserForm />
+          <UserForm initialRole={initialRole} />
         </div>
         <AppNav />
       </div>
     </main>
   );
 }
-
