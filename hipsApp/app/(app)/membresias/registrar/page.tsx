@@ -6,13 +6,14 @@ import { AppNav } from "@/components/app-nav";
 import { PaymentActionsMenu } from "@/components/features/memberships/payment-actions-menu";
 import { PaymentForm } from "@/components/features/memberships/payment-form";
 import { isPaymentMethod } from "@/lib/payment";
-import { parsePaymentSettings } from "@/lib/payment-settings";
+import { parseTransferAccounts } from "@/lib/payment-settings";
 import { canManageOperations, normalizeRole } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
 
 const todayFormatter = new Intl.DateTimeFormat("en-CA", {
   timeZone: "America/Mexico_City",
 });
+const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
 
 export default async function RegisterPaymentPage(
   props: {
@@ -21,14 +22,20 @@ export default async function RegisterPaymentPage(
       method?: string | string[];
       planId?: string | string[];
       reference?: string | string[];
+      start?: string | string[];
       student?: string | string[];
     }>;
   }
 ) {
-  const { amount, method, planId, reference, student } = await props.searchParams;
+  const { amount, method, planId, reference, start, student } = await props.searchParams;
+  const today = todayFormatter.format(new Date());
   const initialStudentId = typeof student === "string" ? student : undefined;
   const initialPlanId = typeof planId === "string" ? planId : undefined;
   const initialMethod = isPaymentMethod(method) ? method : undefined;
+  const initialStartDate =
+    typeof start === "string" && isoDatePattern.test(start) && start <= today
+      ? start
+      : undefined;
   const amountValue = typeof amount === "string" ? Number(amount) : Number.NaN;
   const initialAmount =
     Number.isFinite(amountValue) &&
@@ -45,7 +52,7 @@ export default async function RegisterPaymentPage(
 
   if (!user) redirect("/acceso");
 
-  const [profileResult, studentsResult, plansResult, settingsResult] = await Promise.all([
+  const [profileResult, studentsResult, plansResult, accountsResult] = await Promise.all([
     supabase.from("profiles").select("role").eq("id", user.id).maybeSingle(),
     supabase
       .from("student_overview")
@@ -58,19 +65,18 @@ export default async function RegisterPaymentPage(
       .eq("active", true)
       .in("kind", ["mensual", "clase_suelta"])
       .order("price", { ascending: false }),
-    supabase.from("academy_settings").select("*").eq("id", true).maybeSingle(),
+    supabase.rpc("list_transfer_accounts" as never),
   ]);
 
   const role = normalizeRole(profileResult.data?.role);
   if (!canManageOperations(role)) redirect("/");
 
   const loadError =
-    profileResult.error ?? studentsResult.error ?? plansResult.error ?? settingsResult.error;
+    profileResult.error ?? studentsResult.error ?? plansResult.error ?? accountsResult.error;
   if (loadError) {
     throw new Error(`No se pudo preparar el pago: ${loadError.message}`);
   }
 
-  const paymentSettings = parsePaymentSettings(settingsResult.data);
   const plans = (plansResult.data ?? []).map((plan) => ({
     ...plan,
     price: Number(plan.price),
@@ -110,11 +116,12 @@ export default async function RegisterPaymentPage(
               initialMethod={initialMethod}
               initialPlanId={initialPlanId}
               initialReference={initialReference}
+              initialStartDate={initialStartDate}
               initialStudentId={initialStudentId}
               plans={plans}
               students={students}
-              today={todayFormatter.format(new Date())}
-              transferDetails={paymentSettings}
+              today={today}
+              transferAccounts={parseTransferAccounts(accountsResult.data)}
             />
           </div>
         </div>

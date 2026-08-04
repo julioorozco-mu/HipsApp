@@ -17,6 +17,7 @@ import { createClient } from "@/lib/supabase/server";
 const todayFormatter = new Intl.DateTimeFormat("en-CA", {
   timeZone: "America/Mexico_City",
 });
+const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
 
 function first(value: string | string[] | undefined) {
   return typeof value === "string" ? value : undefined;
@@ -39,6 +40,7 @@ export default async function ReviewPaymentPage({
     method?: string | string[];
     planId?: string | string[];
     reference?: string | string[];
+    start?: string | string[];
     student?: string | string[];
   }>;
 }) {
@@ -48,7 +50,9 @@ export default async function ReviewPaymentPage({
   const methodValue = first(params.method);
   const amountValue = first(params.amount);
   const reference = first(params.reference)?.trim().slice(0, 100) ?? "";
+  const startDate = first(params.start);
   const amount = Number(amountValue);
+  const today = todayFormatter.format(new Date());
 
   if (
     !studentId ||
@@ -56,7 +60,10 @@ export default async function ReviewPaymentPage({
     !isPaymentMethod(methodValue) ||
     !Number.isFinite(amount) ||
     amount <= 0 ||
-    amount > 99_999_999.99
+    amount > 99_999_999.99 ||
+    !startDate ||
+    !isoDatePattern.test(startDate) ||
+    startDate > today
   ) {
     redirect("/membresias/registrar");
   }
@@ -100,13 +107,13 @@ export default async function ReviewPaymentPage({
   const total = Number(plan.price);
   if (amount < total) redirect("/membresias/registrar");
 
-  const today = todayFormatter.format(new Date());
-  const expirationDate = getMembershipExpirationDate(today, plan.kind);
+  const expirationDate = getMembershipExpirationDate(startDate, plan.kind);
   const hasMembership = Boolean(student.membership_id);
   const editParams = new URLSearchParams({
     amount: amount.toFixed(2),
     method: methodValue,
     planId: plan.id,
+    start: startDate,
     student: student.id,
   });
   if (reference) editParams.set("reference", reference);
@@ -152,7 +159,7 @@ export default async function ReviewPaymentPage({
               <div className="flex justify-between gap-4">
                 <dt className="text-muted-foreground">Periodo</dt>
                 <dd className="text-right font-medium">
-                  {formatIsoDate(today)} – {formatIsoDate(expirationDate)}
+                  {formatIsoDate(startDate)} – {formatIsoDate(expirationDate)}
                 </dd>
               </div>
               <div className="flex justify-between gap-4">
@@ -186,9 +193,11 @@ export default async function ReviewPaymentPage({
 
           <p className="mt-4 flex items-center gap-3 rounded-xl border border-[oklch(0.78_0.16_75)] bg-[oklch(0.97_0.04_80)] px-4 py-3 text-sm text-[oklch(0.45_0.12_65)]">
             <AlertTriangle className="size-5 shrink-0" aria-hidden="true" />
-            {hasMembership
-              ? "Esta acción renovará la membresía."
-              : "Esta acción activará la primera membresía."}
+            {startDate < today
+              ? `El periodo se registrará desde ${formatIsoDate(startDate)}.`
+              : hasMembership
+                ? "Esta acción renovará la membresía."
+                : "Esta acción activará la primera membresía."}
           </p>
 
           <div className="mt-auto space-y-3 pt-6">
@@ -204,6 +213,7 @@ export default async function ReviewPaymentPage({
               method={methodValue}
               planId={plan.id}
               reference={reference}
+              startDate={startDate}
               studentId={student.id}
             />
           </div>
@@ -214,4 +224,3 @@ export default async function ReviewPaymentPage({
     </main>
   );
 }
-

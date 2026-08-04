@@ -14,6 +14,11 @@ export type ConfirmPaymentState = {
   error: string | null;
 };
 
+const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
+const todayFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Mexico_City",
+});
+
 export async function renewMembership(
   studentId: string
 ): Promise<RenewMembershipResult> {
@@ -47,11 +52,7 @@ export async function renewMembership(
     return { error: `No se pudo registrar el pago: ${error.message}` };
   }
 
-  revalidatePath("/");
-  revalidatePath("/asistencia");
-  revalidatePath("/membresias");
-  revalidatePath(`/alumnos/${studentId}`);
-
+  revalidatePaymentPaths(studentId);
   return { error: null };
 }
 
@@ -64,6 +65,8 @@ export async function confirmPayment(
   const method = formData.get("method");
   const amountReceived = Number(formData.get("amount"));
   const reference = String(formData.get("reference") ?? "").trim();
+  const startDate = String(formData.get("startDate") ?? "").trim();
+  const today = todayFormatter.format(new Date());
 
   if (
     typeof studentId !== "string" ||
@@ -72,9 +75,11 @@ export async function confirmPayment(
     !Number.isFinite(amountReceived) ||
     amountReceived <= 0 ||
     amountReceived > 99_999_999.99 ||
-    reference.length > 100
+    reference.length > 100 ||
+    !isoDatePattern.test(startDate) ||
+    startDate > today
   ) {
-    return { error: "Revisa los datos del pago." };
+    return { error: "Revisa los datos y la fecha de inicio del pago." };
   }
 
   const supabase = await createClient();
@@ -95,22 +100,34 @@ export async function confirmPayment(
     return { error: "El monto pagado no cubre el total del plan." };
   }
 
-  const { data, error } = await supabase.rpc("confirm_membership_payment", {
+  const { data, error } = await supabase.rpc("confirm_membership_payment" as never, {
     p_amount_received: amountReceived,
     p_method: method,
     p_plan_id: planId,
-    p_reference: method === "transferencia" ? reference || undefined : undefined,
+    p_reference: method === "transferencia" ? reference || null : null,
+    p_start_date: startDate,
     p_student_id: studentId,
-  });
+  } as never);
 
-  if (error) return { error: `No se pudo registrar el pago: ${error.message}` };
+  if (error) {
+    if (error.message.includes("start date cannot be in the future")) {
+      return { error: "La fecha de inicio no puede estar en el futuro." };
+    }
+    return { error: `No se pudo registrar el pago: ${error.message}` };
+  }
 
-  const paymentId = data?.[0]?.payment_id;
+  const result = data as { payment_id?: string }[] | null;
+  const paymentId = result?.[0]?.payment_id;
   if (!paymentId) return { error: "No se pudo recuperar el comprobante." };
 
+  revalidatePaymentPaths(studentId);
+  redirect(`/membresias/pago-confirmado/${paymentId}`);
+}
+
+function revalidatePaymentPaths(studentId: string) {
   revalidatePath("/");
   revalidatePath("/asistencia");
   revalidatePath("/membresias");
+  revalidatePath("/reportes/pagos");
   revalidatePath(`/alumnos/${studentId}`);
-  redirect(`/membresias/pago-confirmado/${paymentId}`);
 }

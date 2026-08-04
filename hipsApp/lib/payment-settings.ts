@@ -1,11 +1,14 @@
-export type TransferDetails = {
+export type TransferAccount = {
   bank: string;
-  card: string;
-  clabe: string;
+  card: string | null;
+  clabe: string | null;
   holder: string;
+  id: string;
+  label: string;
+  sortOrder: number;
 };
 
-export type PaymentSettings = TransferDetails & {
+export type PaymentSettings = {
   monthlyPrice: number;
   singleClassPrice: number;
   updatedAt: string | null;
@@ -15,32 +18,55 @@ type RawPaymentSettings = {
   monthly_plan_price?: number | string | null;
   payment_settings_updated_at?: string | null;
   single_class_price?: number | string | null;
-  transfer_bank?: string | null;
-  transfer_card?: string | null;
-  transfer_clabe?: string | null;
-  transfer_holder?: string | null;
+};
+
+type RawTransferAccount = {
+  bank?: string | null;
+  card?: string | null;
+  clabe?: string | null;
+  holder?: string | null;
+  id?: string | null;
+  label?: string | null;
+  sort_order?: number | null;
 };
 
 export function parsePaymentSettings(row: unknown): PaymentSettings {
   const settings = (row ?? {}) as RawPaymentSettings;
 
   return {
-    bank: settings.transfer_bank?.trim() ?? "",
-    card: settings.transfer_card?.replace(/\D/g, "") ?? "",
-    clabe: settings.transfer_clabe?.replace(/\D/g, "") ?? "",
-    holder: settings.transfer_holder?.trim() ?? "",
     monthlyPrice: Number(settings.monthly_plan_price ?? 0),
     singleClassPrice: Number(settings.single_class_price ?? 0),
     updatedAt: settings.payment_settings_updated_at ?? null,
   };
 }
 
-export function transferMessage(details: TransferDetails) {
+export function parseTransferAccounts(rows: unknown): TransferAccount[] {
+  if (!Array.isArray(rows)) return [];
+
+  return rows.flatMap((row) => {
+    const account = (row ?? {}) as RawTransferAccount;
+    if (!account.id || !account.bank || !account.holder || !account.label) return [];
+
+    return [{
+      bank: account.bank.trim(),
+      card: account.card?.replace(/\D/g, "") || null,
+      clabe: account.clabe?.replace(/\D/g, "") || null,
+      holder: account.holder.trim(),
+      id: account.id,
+      label: account.label.trim(),
+      sortOrder: account.sort_order ?? 0,
+    }];
+  });
+}
+
+export function transferMessage(account: TransferAccount) {
   return [
-    "Datos para transferencia HipsApp",
-    `Banco: ${details.bank}`,
-    `Titular: ${details.holder}`,
-    `Tarjeta: ${details.card}`,
-    `CLABE interbancaria: ${details.clabe}`,
-  ].join("\n");
+    `Datos para transferencia · ${account.label}`,
+    `Banco: ${account.bank}`,
+    `Titular: ${account.holder}`,
+    account.card ? `Tarjeta: ${account.card}` : null,
+    account.clabe ? `CLABE interbancaria: ${account.clabe}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
 }

@@ -4,7 +4,11 @@ import { redirect } from "next/navigation";
 
 import { AppNav } from "@/components/app-nav";
 import { PaymentSettingsForm } from "@/components/features/memberships/payment-settings-form";
-import { parsePaymentSettings } from "@/lib/payment-settings";
+import { TransferAccountsManager } from "@/components/features/memberships/transfer-accounts-manager";
+import {
+  parsePaymentSettings,
+  parseTransferAccounts,
+} from "@/lib/payment-settings";
 import { normalizeRole } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
 
@@ -15,16 +19,18 @@ export default async function PaymentSettingsPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/acceso");
 
-  const [profileResult, settingsResult] = await Promise.all([
+  const [profileResult, settingsResult, accountsResult] = await Promise.all([
     supabase.from("profiles").select("role").eq("id", user.id).maybeSingle(),
     supabase.from("academy_settings").select("*").eq("id", true).maybeSingle(),
+    supabase.rpc("list_transfer_accounts" as never),
   ]);
 
   if (normalizeRole(profileResult.data?.role) !== "superadmin") {
     redirect("/membresias/registrar");
   }
-  if (settingsResult.error) {
-    throw new Error(`No se pudo cargar la configuración: ${settingsResult.error.message}`);
+  const loadError = settingsResult.error ?? accountsResult.error;
+  if (loadError) {
+    throw new Error(`No se pudo cargar la configuración: ${loadError.message}`);
   }
 
   return (
@@ -46,8 +52,9 @@ export default async function PaymentSettingsPage() {
           </span>
         </header>
 
-        <div className="flex flex-1 flex-col overflow-y-auto px-5 pt-6 pb-5 sm:px-8">
+        <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-5 pt-6 pb-5 sm:px-8">
           <PaymentSettingsForm settings={parsePaymentSettings(settingsResult.data)} />
+          <TransferAccountsManager accounts={parseTransferAccounts(accountsResult.data)} />
         </div>
         <AppNav />
       </div>
