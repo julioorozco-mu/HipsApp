@@ -49,6 +49,7 @@ type MembershipFilter =
   | "vencida"
   | "sin_registro";
 type SortMode = "role_az" | "az" | "za";
+type GestureAxis = "pending" | "horizontal" | "vertical";
 
 const roleFilters: { label: string; value: RoleFilter }[] = [
   { label: "Todos", value: "todos" },
@@ -56,6 +57,7 @@ const roleFilters: { label: string; value: RoleFilter }[] = [
   { label: "Alumnos", value: "alumnos" },
 ];
 const ACTIONS_WIDTH = 184;
+const GESTURE_THRESHOLD = 7;
 const initialDeleteState: ManageUserState = { error: null };
 const roleRank: Record<AppRole, number> = {
   superadmin: 0,
@@ -228,7 +230,8 @@ function SwipeUserRow({
   user: ManagedUserItem;
 }) {
   const rowRef = useRef<HTMLLIElement>(null);
-  const startXRef = useRef<number | null>(null);
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
+  const gestureAxisRef = useRef<GestureAxis>("pending");
   const startOffsetRef = useRef(0);
   const offsetRef = useRef(0);
   const movedRef = useRef(false);
@@ -265,32 +268,80 @@ function SwipeUserRow({
     };
   }, [onOpenChange, open]);
 
-  function handlePointerDown(event: ReactPointerEvent<HTMLAnchorElement>) {
-    if (event.pointerType === "mouse" && event.button !== 0) return;
-    startXRef.current = event.clientX;
-    startOffsetRef.current = offsetRef.current;
-    movedRef.current = false;
-    event.currentTarget.setPointerCapture(event.pointerId);
-  }
-
-  function handlePointerMove(event: ReactPointerEvent<HTMLAnchorElement>) {
-    if (startXRef.current === null) return;
-    const delta = event.clientX - startXRef.current;
-    if (Math.abs(delta) > 5) movedRef.current = true;
-    updateOffset(startOffsetRef.current + delta);
-  }
-
-  function finishGesture(event: ReactPointerEvent<HTMLAnchorElement>) {
-    if (startXRef.current === null) return;
-    startXRef.current = null;
+  function releasePointer(event: ReactPointerEvent<HTMLAnchorElement>) {
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
-    onOpenChange(offsetRef.current <= -ACTIONS_WIDTH / 2);
   }
 
-  function cancelGesture() {
-    startXRef.current = null;
+  function resetGesture() {
+    pointerStartRef.current = null;
+    gestureAxisRef.current = "pending";
+  }
+
+  function handlePointerDown(event: ReactPointerEvent<HTMLAnchorElement>) {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    pointerStartRef.current = { x: event.clientX, y: event.clientY };
+    gestureAxisRef.current = "pending";
+    startOffsetRef.current = offsetRef.current;
+    movedRef.current = false;
+  }
+
+  function handlePointerMove(event: ReactPointerEvent<HTMLAnchorElement>) {
+    const start = pointerStartRef.current;
+    if (!start) return;
+
+    const deltaX = event.clientX - start.x;
+    const deltaY = event.clientY - start.y;
+
+    if (gestureAxisRef.current === "pending") {
+      if (
+        Math.abs(deltaX) < GESTURE_THRESHOLD &&
+        Math.abs(deltaY) < GESTURE_THRESHOLD
+      ) {
+        return;
+      }
+
+      movedRef.current = true;
+      if (Math.abs(deltaY) > Math.abs(deltaX)) {
+        gestureAxisRef.current = "vertical";
+        return;
+      }
+
+      gestureAxisRef.current = "horizontal";
+      if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }
+    }
+
+    if (gestureAxisRef.current !== "horizontal") return;
+
+    event.preventDefault();
+    updateOffset(startOffsetRef.current + deltaX);
+  }
+
+  function finishGesture(event: ReactPointerEvent<HTMLAnchorElement>) {
+    if (!pointerStartRef.current) return;
+    const axis = gestureAxisRef.current;
+    releasePointer(event);
+    resetGesture();
+
+    if (axis === "horizontal") {
+      onOpenChange(offsetRef.current <= -ACTIONS_WIDTH / 2);
+      return;
+    }
+
+    if (axis === "vertical") {
+      onOpenChange(false);
+      return;
+    }
+
+    updateOffset(open ? -ACTIONS_WIDTH : 0);
+  }
+
+  function cancelGesture(event: ReactPointerEvent<HTMLAnchorElement>) {
+    releasePointer(event);
+    resetGesture();
     movedRef.current = false;
     updateOffset(open ? -ACTIONS_WIDTH : 0);
   }
@@ -325,7 +376,9 @@ function SwipeUserRow({
 
       <Link
         href={frontHref}
+        draggable={false}
         aria-label={user.role === "alumno" ? `Ver perfil de ${user.fullName}` : `Editar a ${user.fullName}`}
+        onDragStart={(event) => event.preventDefault()}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={finishGesture}
@@ -456,7 +509,7 @@ export function UserList({ users }: { users: ManagedUserItem[] }) {
         Desliza un registro hacia la izquierda para editarlo o eliminarlo.
       </p>
 
-      <div className="mt-2 min-h-0 overflow-y-auto overscroll-contain rounded-2xl border bg-card">
+      <div className="mt-2 min-h-0 touch-pan-y overflow-y-auto overscroll-contain rounded-2xl border bg-card [-webkit-overflow-scrolling:touch]">
         {visibleUsers.length ? (
           <ul className="divide-y">
             {visibleUsers.map((user) => {
