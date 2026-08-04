@@ -17,6 +17,7 @@ export function ConfirmPaymentForm({
   method,
   planId,
   reference,
+  startDate,
   studentId,
 }: {
   actionLabel: string;
@@ -24,6 +25,7 @@ export function ConfirmPaymentForm({
   method: PaymentMethod;
   planId: string;
   reference: string;
+  startDate: string;
   studentId: string;
 }) {
   const [state, formAction, pending] = useActionState(
@@ -38,6 +40,7 @@ export function ConfirmPaymentForm({
       <input type="hidden" name="method" value={method} />
       <input type="hidden" name="amount" value={amount} />
       <input type="hidden" name="reference" value={reference} />
+      <input type="hidden" name="startDate" value={startDate} />
       {state.error ? (
         <p
           role="alert"
