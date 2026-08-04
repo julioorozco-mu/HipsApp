@@ -24,7 +24,7 @@ export default async function EditUserPage(
     supabase.from("profiles").select("role").eq("id", user.id).maybeSingle(),
     supabase
       .from("profiles")
-      .select("id, full_name, email, role")
+      .select("id, full_name, email, role, whatsapp")
       .eq("id", id)
       .maybeSingle(),
     supabase.from("students").select("telefono").eq("id", id).maybeSingle(),
@@ -49,7 +49,10 @@ export default async function EditUserPage(
     email: profile.email,
     fullName: profile.full_name,
     id: profile.id,
-    phone: studentResult.data?.telefono ?? null,
+    phone:
+      role === "alumno"
+        ? studentResult.data?.telefono ?? profile.whatsapp ?? null
+        : profile.whatsapp ?? null,
     role,
   };
 
