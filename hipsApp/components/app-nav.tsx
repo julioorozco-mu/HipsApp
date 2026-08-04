@@ -22,7 +22,18 @@ export function AppNav() {
     }
     if (pathname.startsWith("/asistencia")) return "/asistencia";
     if (pathname.startsWith("/mensajes")) return "/mensajes";
-    if (pathname.startsWith("/mas") || pathname.startsWith("/clases") || pathname.startsWith("/playlists") || pathname.startsWith("/plantillas") || pathname.startsWith("/configuracion") || pathname.startsWith("/perfil")) return "/mas";
+    if (
+      pathname.startsWith("/mas") ||
+      pathname.startsWith("/clases") ||
+      pathname.startsWith("/playlists") ||
+      pathname.startsWith("/plantillas") ||
+      pathname.startsWith("/configuracion") ||
+      pathname.startsWith("/perfil") ||
+      pathname.startsWith("/membresias") ||
+      pathname.startsWith("/reportes")
+    ) {
+      return "/mas";
+    }
     return "";
   };
   const active = getActiveTab();

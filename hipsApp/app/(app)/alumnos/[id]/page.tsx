@@ -16,6 +16,7 @@ import {
   MEMBERSHIP_STATUS_LABEL,
   type MembershipStatus,
 } from "@/lib/membership";
+import { canManageOperations, normalizeRole } from "@/lib/roles";
 import { getMonthlyAttendanceStats } from "@/lib/streak";
 import { createClient } from "@/lib/supabase/server";
 
@@ -45,7 +46,8 @@ export default async function StudentProfilePage(
 
   if (!user) redirect("/acceso");
 
-  const [studentResult, attendanceResult] = await Promise.all([
+  const [profileResult, studentResult, attendanceResult] = await Promise.all([
+    supabase.from("profiles").select("role").eq("id", user.id).maybeSingle(),
     supabase
       .from("student_overview")
       .select(
@@ -60,17 +62,25 @@ export default async function StudentProfilePage(
       .order("marked_at"),
   ]);
 
-  if (studentResult.error || attendanceResult.error) {
+  if (profileResult.error || studentResult.error || attendanceResult.error) {
     throw new Error(
       `No se pudo cargar el perfil: ${
-        studentResult.error?.message ?? attendanceResult.error?.message
+        profileResult.error?.message ??
+        studentResult.error?.message ??
+        attendanceResult.error?.message
       }`
     );
   }
 
+  const role = normalizeRole(profileResult.data?.role);
+  if (role === "alumno" && id !== user.id) redirect("/");
+
   const student = studentResult.data;
   if (!student?.id || !student.nombre || !student.telefono) notFound();
 
+  const backHref = role === "superadmin" ? "/usuarios" : role === "admin" ? "/alumnos" : "/";
+  const backLabel = role === "superadmin" ? "Volver a usuarios" : role === "admin" ? "Volver a alumnos" : "Volver a inicio";
+  const canManage = canManageOperations(role);
   const membershipStatus =
     (student.membership_status as MembershipStatus | null) ?? "sin_registro";
   const membershipActionLabel =
@@ -91,8 +101,8 @@ export default async function StudentProfilePage(
         <div className="flex flex-1 flex-col px-4 pt-5 pb-6 sm:px-7 sm:pt-9">
           <header className="flex items-center justify-between">
             <Link
-              href="/alumnos"
-              aria-label="Volver a alumnos"
+              href={backHref}
+              aria-label={backLabel}
               className="grid size-12 place-items-center rounded-full transition-colors hover:bg-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary active:bg-accent"
             >
               <ArrowLeft className="size-7" />
@@ -172,23 +182,25 @@ export default async function StudentProfilePage(
             </p>
           </Card>
 
-          <div className="mt-auto space-y-3 pt-6">
-            <Link
-              href={`/membresias/registrar?student=${student.id}`}
-              className="flex min-h-14 items-center justify-center rounded-xl bg-primary px-5 text-base font-semibold text-primary-foreground transition-colors hover:bg-primary/85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary active:bg-primary/75"
-            >
-              {membershipActionLabel}
-            </Link>
-            <a
-              href={whatsappUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="flex min-h-14 items-center justify-center gap-2 rounded-xl border border-primary bg-card px-5 text-base font-semibold text-[oklch(0.55_0.19_150)] transition-colors hover:bg-[oklch(0.96_0.035_150)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary active:bg-[oklch(0.93_0.05_150)]"
-            >
-              <MessageCircle className="size-6" aria-hidden="true" />
-              Enviar recordatorio por WhatsApp
-            </a>
-          </div>
+          {canManage ? (
+            <div className="mt-auto space-y-3 pt-6">
+              <Link
+                href={`/membresias/registrar?student=${student.id}`}
+                className="flex min-h-14 items-center justify-center rounded-xl bg-primary px-5 text-base font-semibold text-primary-foreground transition-colors hover:bg-primary/85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary active:bg-primary/75"
+              >
+                {membershipActionLabel}
+              </Link>
+              <a
+                href={whatsappUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="flex min-h-14 items-center justify-center gap-2 rounded-xl border border-primary bg-card px-5 text-base font-semibold text-[oklch(0.55_0.19_150)] transition-colors hover:bg-[oklch(0.96_0.035_150)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary active:bg-[oklch(0.93_0.05_150)]"
+              >
+                <MessageCircle className="size-6" aria-hidden="true" />
+                Enviar recordatorio por WhatsApp
+              </a>
+            </div>
+          ) : null}
         </div>
 
         <AppNav />

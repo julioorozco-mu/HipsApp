@@ -6,6 +6,7 @@ import {
   StudentList,
   type StudentListItem,
 } from "@/components/features/students/student-list";
+import { normalizeRole } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function StudentsPage() {
@@ -15,6 +16,15 @@ export default async function StudentsPage() {
   } = await supabase.auth.getUser();
 
   if (!user) redirect("/acceso");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+  const role = normalizeRole(profile?.role);
+  if (role === "superadmin") redirect("/usuarios");
+  if (role === "alumno") redirect(`/alumnos/${user.id}`);
 
   const { data, error } = await supabase
     .from("student_overview")
@@ -51,4 +61,3 @@ export default async function StudentsPage() {
     </main>
   );
 }
-
