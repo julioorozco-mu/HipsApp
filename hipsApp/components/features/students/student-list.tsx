@@ -13,13 +13,13 @@ export type StudentListItem = {
   membershipStatus: string;
 };
 
-const filters = [
-  { value: "todos", label: "Todos" },
-  { value: "activos", label: "Activos" },
-  { value: "vencidos", label: "Vencidos" },
-] as const;
-
-type Filter = (typeof filters)[number]["value"];
+type MembershipFilter =
+  | "todos"
+  | "activa"
+  | "por_vencer"
+  | "vencida"
+  | "sin_registro";
+type SortMode = "az" | "za";
 
 const membershipLabel: Record<string, string> = {
   activa: "Activa",
@@ -44,21 +44,29 @@ const avatarColors = [
 
 export function StudentList({ students }: { students: StudentListItem[] }) {
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<Filter>("todos");
+  const [membershipFilter, setMembershipFilter] =
+    useState<MembershipFilter>("todos");
+  const [sortMode, setSortMode] = useState<SortMode>("az");
 
   const visibleStudents = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("es-MX");
-    return students.filter((student) => {
-      const matchesQuery = student.nombre.toLocaleLowerCase("es-MX").includes(normalizedQuery);
-      const matchesFilter =
-        filter === "todos" ||
-        (filter === "activos" &&
-          ["activa", "por_vencer"].includes(student.membershipStatus)) ||
-        (filter === "vencidos" &&
-          ["vencida", "sin_registro"].includes(student.membershipStatus));
-      return matchesQuery && matchesFilter;
-    });
-  }, [filter, query, students]);
+    return students
+      .filter((student) => {
+        const matchesQuery = student.nombre
+          .toLocaleLowerCase("es-MX")
+          .includes(normalizedQuery);
+        const matchesMembership =
+          membershipFilter === "todos" ||
+          student.membershipStatus === membershipFilter;
+        return matchesQuery && matchesMembership;
+      })
+      .sort((a, b) => {
+        const alphabetical = a.nombre.localeCompare(b.nombre, "es-MX", {
+          sensitivity: "base",
+        });
+        return sortMode === "az" ? alphabetical : -alphabetical;
+      });
+  }, [membershipFilter, query, sortMode, students]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -74,22 +82,34 @@ export function StudentList({ students }: { students: StudentListItem[] }) {
         />
       </div>
 
-      <div className="mt-3 flex shrink-0 gap-2" aria-label="Filtrar alumnos">
-        {filters.map(({ value, label }) => (
-          <button
-            key={value}
-            type="button"
-            aria-pressed={filter === value}
-            onClick={() => setFilter(value)}
-            className={`min-h-10 rounded-full px-5 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
-              filter === value
-                ? "bg-primary text-primary-foreground"
-                : "border border-border bg-secondary/60 hover:bg-secondary"
-            }`}
+      <div className="mt-3 grid shrink-0 grid-cols-2 gap-2">
+        <label className="grid gap-1 text-xs font-semibold text-muted-foreground">
+          Orden
+          <select
+            value={sortMode}
+            onChange={(event) => setSortMode(event.target.value as SortMode)}
+            className="min-h-11 rounded-xl border bg-card px-3 text-sm font-medium text-foreground"
           >
-            {label}
-          </button>
-        ))}
+            <option value="az">Nombre · A–Z</option>
+            <option value="za">Nombre · Z–A</option>
+          </select>
+        </label>
+        <label className="grid gap-1 text-xs font-semibold text-muted-foreground">
+          Membresía
+          <select
+            value={membershipFilter}
+            onChange={(event) =>
+              setMembershipFilter(event.target.value as MembershipFilter)
+            }
+            className="min-h-11 rounded-xl border bg-card px-3 text-sm font-medium text-foreground"
+          >
+            <option value="todos">Todos los estados</option>
+            <option value="activa">Activa</option>
+            <option value="por_vencer">Por vencer</option>
+            <option value="vencida">Vencida</option>
+            <option value="sin_registro">Sin membresía</option>
+          </select>
+        </label>
       </div>
 
       <div className="mt-3 max-h-[calc(100dvh-21rem)] overflow-y-auto overscroll-contain rounded-2xl border bg-card sm:max-h-[calc(100dvh-24rem)]">
