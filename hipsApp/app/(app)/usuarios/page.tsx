@@ -31,7 +31,11 @@ type StudentOverviewRow = {
 export default async function UsersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ created?: string; deleted?: string; updated?: string }>;
+  searchParams: Promise<{
+    created?: string;
+    deleted?: string;
+    updated?: string;
+  }>;
 }) {
   const supabase = await createClient();
   const {
@@ -43,13 +47,17 @@ export default async function UsersPage({
     supabase.from("profiles").select("role").eq("id", user.id).maybeSingle(),
     searchParams,
   ]);
-  if (normalizeRole(currentProfile?.role) !== "superadmin") redirect("/alumnos");
+  if (normalizeRole(currentProfile?.role) !== "superadmin") {
+    redirect("/alumnos");
+  }
 
   const [profilesResult, studentsResult] = await Promise.all([
     supabase.from("profiles").select("*").order("created_at"),
     supabase
       .from("student_overview")
-      .select("id, nombre, telefono, correo, fecha_registro, membership_status")
+      .select(
+        "id, nombre, telefono, correo, fecha_registro, membership_status"
+      )
       .order("nombre"),
   ]);
 
@@ -98,17 +106,18 @@ export default async function UsersPage({
   });
   users.sort((a, b) => a.fullName.localeCompare(b.fullName, "es-MX"));
 
-  const successMessage = params.created === "1"
-    ? "Usuario creado correctamente."
-    : params.updated === "1"
-      ? "Usuario actualizado correctamente."
-      : params.deleted === "1"
-        ? "Usuario eliminado correctamente."
-        : null;
+  const successMessage =
+    params.created === "1"
+      ? "Usuario creado correctamente."
+      : params.updated === "1"
+        ? "Usuario actualizado correctamente."
+        : params.deleted === "1"
+          ? "Usuario eliminado correctamente."
+          : null;
 
   return (
     <main className="min-h-dvh bg-[oklch(0.965_0.018_300)] p-2 sm:p-5">
-      <div className="relative mx-auto flex min-h-[calc(100dvh-1rem)] w-full max-w-lg flex-col overflow-hidden rounded-[2.5rem] bg-card shadow-[0_18px_50px_oklch(0.25_0.04_300/0.14)] sm:min-h-[calc(100dvh-2.5rem)]">
+      <div className="relative mx-auto flex h-[calc(100dvh-1rem)] w-full max-w-lg flex-col overflow-hidden rounded-[2.5rem] bg-card shadow-[0_18px_50px_oklch(0.25_0.04_300/0.14)] sm:h-[calc(100dvh-2.5rem)]">
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pt-6 pb-4 sm:px-7 sm:pt-10">
           <header className="flex shrink-0 items-center justify-between gap-4">
             <div>
@@ -136,7 +145,7 @@ export default async function UsersPage({
         <Link
           href="/usuarios/nuevo"
           aria-label="Agregar usuario"
-          className="absolute right-5 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] z-40 grid size-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary active:scale-95 sm:right-8 sm:bottom-[calc(6.5rem+env(safe-area-inset-bottom))]"
+          className="fixed right-6 bottom-28 z-50 grid size-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-xl transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary active:scale-95 sm:right-[calc(50%-15rem)]"
         >
           <Plus className="size-7" />
         </Link>
