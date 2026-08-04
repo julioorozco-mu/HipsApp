@@ -7,7 +7,6 @@ import {
   CalendarDays,
   Check,
   ChevronDown,
-  Copy,
   CreditCard,
   Landmark,
   MessageCircle,
@@ -26,7 +25,7 @@ import {
 } from "@/lib/payment";
 import {
   transferMessage,
-  type TransferDetails,
+  type TransferAccount,
 } from "@/lib/payment-settings";
 
 type Student = { id: string; nombre: string };
@@ -57,21 +56,23 @@ export function PaymentForm({
   initialMethod = "efectivo",
   initialPlanId,
   initialReference = "",
+  initialStartDate,
   initialStudentId,
   plans,
   students,
   today,
-  transferDetails,
+  transferAccounts,
 }: {
   initialAmount?: string;
   initialMethod?: PaymentMethod;
   initialPlanId?: string;
   initialReference?: string;
+  initialStartDate?: string;
   initialStudentId?: string;
   plans: Plan[];
   students: Student[];
   today: string;
-  transferDetails: TransferDetails;
+  transferAccounts: TransferAccount[];
 }) {
   const initialPlan = plans.find(({ id }) => id === initialPlanId);
   const defaultPlanId =
@@ -79,6 +80,11 @@ export function PaymentForm({
     plans.find(({ kind }) => kind === "mensual")?.id ??
     plans[0]?.id ??
     "";
+  const transferAvailable = transferAccounts.length > 0;
+  const defaultMethod =
+    initialMethod === "transferencia" && !transferAvailable
+      ? "efectivo"
+      : initialMethod;
   const [planId, setPlanId] = useState(defaultPlanId);
   const [studentId, setStudentId] = useState(
     students.some(({ id }) => id === initialStudentId)
@@ -86,25 +92,24 @@ export function PaymentForm({
       : students[0]?.id ?? ""
   );
   const defaultPlan = plans.find(({ id }) => id === defaultPlanId);
-  const [method, setMethod] = useState<PaymentMethod>(initialMethod);
+  const [method, setMethod] = useState<PaymentMethod>(defaultMethod);
   const [amount, setAmount] = useState(
     initialAmount ??
-      (initialMethod === "efectivo"
+      (defaultMethod === "efectivo"
         ? "0.00"
         : defaultPlan?.price.toFixed(2) ?? "0.00")
   );
   const [reference, setReference] = useState(initialReference);
+  const [startDate, setStartDate] = useState(initialStartDate ?? today);
   const [showTransferDetails, setShowTransferDetails] = useState(false);
-  const [copied, setCopied] = useState(false);
   const transferOpenedRef = useRef(false);
   const selectedPlan = plans.find((plan) => plan.id === planId);
   const selectedStudent = students.find((student) => student.id === studentId);
   const expirationDate = selectedPlan
-    ? getMembershipExpirationDate(today, selectedPlan.kind)
-    : today;
+    ? getMembershipExpirationDate(startDate, selectedPlan.kind)
+    : startDate;
   const amountValue = Number(amount) || 0;
   const change = calculateChange(amountValue, selectedPlan?.price ?? 0);
-  const transferText = transferMessage(transferDetails);
 
   function selectPlan(nextPlanId: string) {
     setPlanId(nextPlanId);
@@ -115,6 +120,8 @@ export function PaymentForm({
   }
 
   function selectMethod(nextMethod: PaymentMethod) {
+    if (nextMethod === "transferencia" && !transferAvailable) return;
+
     setMethod(nextMethod);
     setAmount(
       nextMethod === "efectivo"
@@ -132,19 +139,9 @@ export function PaymentForm({
     }
   }
 
-  async function copyTransferDetails() {
-    try {
-      await navigator.clipboard.writeText(transferText);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1600);
-    } catch {
-      setCopied(false);
-    }
-  }
-
-  function shareTransferDetails() {
+  function shareTransferDetails(account: TransferAccount) {
     window.open(
-      `https://wa.me/?text=${encodeURIComponent(transferText)}`,
+      `https://wa.me/?text=${encodeURIComponent(transferMessage(account))}`,
       "_blank",
       "noopener,noreferrer"
     );
@@ -224,21 +221,27 @@ export function PaymentForm({
         </fieldset>
 
         <div className="mt-6 grid grid-cols-2 gap-3">
-          <div>
-            <p className="text-base font-medium">Inicio</p>
-            <div
-              aria-label={`Inicio: ${formatIsoDate(today)}`}
-              className="relative mt-2 flex h-14 items-center rounded-xl border border-input bg-card pr-2 pl-10 text-sm"
-            >
+          <label className="grid gap-2 text-base font-medium" htmlFor="start">
+            Inicio
+            <span className="relative">
               <CalendarDays className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground" />
-              <time dateTime={today}>{formatIsoDate(today)}</time>
-            </div>
-          </div>
+              <Input
+                id="start"
+                name="start"
+                type="date"
+                max={today}
+                required
+                value={startDate}
+                onChange={(event) => setStartDate(event.target.value)}
+                className="h-14 rounded-xl pl-10 text-sm"
+              />
+            </span>
+          </label>
           <div>
             <p className="text-base font-medium">Vence</p>
             <div
               aria-label={`Vence: ${formatIsoDate(expirationDate)}`}
-              className="relative mt-2 flex h-14 items-center rounded-xl border border-input bg-card pr-2 pl-10 text-sm"
+              className="relative mt-2 flex h-14 items-center rounded-xl border border-input bg-secondary/45 pr-2 pl-10 text-sm"
             >
               <CalendarDays className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground" />
               <time dateTime={expirationDate}>
@@ -247,6 +250,9 @@ export function PaymentForm({
             </div>
           </div>
         </div>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Puedes usar una fecha anterior; el vencimiento se recalcula automáticamente.
+        </p>
 
         <div className="mt-6 grid grid-cols-2 gap-3">
           <div>
@@ -289,17 +295,23 @@ export function PaymentForm({
           <div className="mt-2 grid grid-cols-3 gap-2">
             {methods.map(({ value, label, icon: Icon }) => {
               const isSelected = method === value;
+              const disabled = value === "transferencia" && !transferAvailable;
 
               return (
                 <label
                   key={value}
-                  className="has-checked:border-primary has-checked:bg-primary/5 has-checked:text-primary relative flex min-h-24 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-border px-1 text-center text-xs font-medium transition-colors hover:bg-secondary"
+                  className={`has-checked:border-primary has-checked:bg-primary/5 has-checked:text-primary relative flex min-h-24 flex-col items-center justify-center gap-2 rounded-xl border border-border px-1 text-center text-xs font-medium transition-colors ${
+                    disabled
+                      ? "cursor-not-allowed opacity-45"
+                      : "cursor-pointer hover:bg-secondary"
+                  }`}
                 >
                   <input
                     type="radio"
                     name="method"
                     value={value}
                     checked={isSelected}
+                    disabled={disabled}
                     onChange={() => selectMethod(value)}
                     className="sr-only"
                   />
@@ -310,6 +322,7 @@ export function PaymentForm({
                   ) : null}
                   <Icon className="size-6" aria-hidden="true" />
                   {label}
+                  {disabled ? <span className="text-[0.6rem]">Sin cuenta</span> : null}
                 </label>
               );
             })}
@@ -328,7 +341,7 @@ export function PaymentForm({
                 onClick={() => setShowTransferDetails(true)}
                 className="text-sm font-semibold text-primary"
               >
-                Ver datos bancarios
+                Ver cuentas bancarias
               </button>
             </div>
             <Input
@@ -346,7 +359,7 @@ export function PaymentForm({
         <div className="mt-auto pt-5">
           <Button
             type="submit"
-            disabled={!students.length || !plans.length}
+            disabled={!students.length || !plans.length || !startDate}
             className="min-h-14 w-full rounded-xl text-base"
           >
             Revisar pago
@@ -360,7 +373,7 @@ export function PaymentForm({
             role="dialog"
             aria-modal="true"
             aria-labelledby="transfer-title"
-            className="w-full max-w-md rounded-[2rem] bg-card p-5 shadow-2xl sm:p-6"
+            className="max-h-[calc(100dvh-1rem)] w-full max-w-md overflow-y-auto rounded-[2rem] bg-card p-5 shadow-2xl sm:p-6"
           >
             <div className="flex items-start justify-between gap-4">
               <span className="grid size-12 place-items-center rounded-full bg-[oklch(0.93_0.07_150)] text-[oklch(0.48_0.16_150)]">
@@ -377,56 +390,61 @@ export function PaymentForm({
             </div>
 
             <h2 id="transfer-title" className="mt-4 text-2xl font-bold tracking-tight">
-              Datos para transferencia
+              Cuentas para transferencia
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Compártelos con el alumno antes de registrar la referencia.
+              Comparte con el alumno la cuenta que prefiera utilizar.
             </p>
 
-            <dl className="mt-5 overflow-hidden rounded-2xl border bg-secondary/25 divide-y">
-              <div className="px-4 py-3">
-                <dt className="text-xs text-muted-foreground">Banco</dt>
-                <dd className="font-semibold">{transferDetails.bank}</dd>
-              </div>
-              <div className="px-4 py-3">
-                <dt className="text-xs text-muted-foreground">Titular</dt>
-                <dd className="font-semibold">{transferDetails.holder}</dd>
-              </div>
-              <div className="px-4 py-3">
-                <dt className="text-xs text-muted-foreground">Tarjeta</dt>
-                <dd className="break-all font-mono font-semibold">{transferDetails.card}</dd>
-              </div>
-              <div className="px-4 py-3">
-                <dt className="text-xs text-muted-foreground">CLABE interbancaria</dt>
-                <dd className="break-all font-mono font-semibold">{transferDetails.clabe}</dd>
-              </div>
-            </dl>
-
             <div className="mt-5 grid gap-3">
-              <button
-                type="button"
-                onClick={shareTransferDetails}
-                className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[oklch(0.55_0.19_150)] px-4 font-semibold text-white"
-              >
-                <MessageCircle className="size-5" />
-                Compartir por WhatsApp
-              </button>
-              <button
-                type="button"
-                onClick={copyTransferDetails}
-                className="flex min-h-12 items-center justify-center gap-2 rounded-xl border px-4 font-semibold hover:bg-secondary"
-              >
-                <Copy className="size-5" />
-                {copied ? "Datos copiados" : "Copiar datos"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowTransferDetails(false)}
-                className="min-h-12 rounded-xl text-sm font-semibold text-primary"
-              >
-                Continuar con el pago
-              </button>
+              {transferAccounts.map((account) => (
+                <article key={account.id} className="rounded-2xl border bg-secondary/25 p-4">
+                  <div className="flex items-start gap-3">
+                    <span className="grid size-10 shrink-0 place-items-center rounded-full bg-card text-primary">
+                      <Landmark className="size-5" />
+                    </span>
+                    <div className="min-w-0">
+                      <h3 className="truncate font-semibold">{account.label}</h3>
+                      <p className="truncate text-sm text-muted-foreground">{account.bank}</p>
+                    </div>
+                  </div>
+                  <dl className="mt-3 overflow-hidden rounded-xl border bg-card divide-y text-sm">
+                    <div className="px-3 py-2">
+                      <dt className="text-xs text-muted-foreground">Titular</dt>
+                      <dd className="font-semibold">{account.holder}</dd>
+                    </div>
+                    {account.card ? (
+                      <div className="px-3 py-2">
+                        <dt className="text-xs text-muted-foreground">Tarjeta</dt>
+                        <dd className="break-all font-mono font-semibold">{account.card}</dd>
+                      </div>
+                    ) : null}
+                    {account.clabe ? (
+                      <div className="px-3 py-2">
+                        <dt className="text-xs text-muted-foreground">CLABE interbancaria</dt>
+                        <dd className="break-all font-mono font-semibold">{account.clabe}</dd>
+                      </div>
+                    ) : null}
+                  </dl>
+                  <button
+                    type="button"
+                    onClick={() => shareTransferDetails(account)}
+                    className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[oklch(0.55_0.19_150)] px-4 text-sm font-semibold text-white"
+                  >
+                    <MessageCircle className="size-5" />
+                    Compartir por WhatsApp
+                  </button>
+                </article>
+              ))}
             </div>
+
+            <button
+              type="button"
+              onClick={() => setShowTransferDetails(false)}
+              className="mt-5 min-h-12 w-full rounded-xl border px-4 font-semibold hover:bg-secondary"
+            >
+              Continuar con el pago
+            </button>
           </section>
         </div>
       ) : null}
