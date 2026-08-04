@@ -30,7 +30,7 @@ export default async function UsersPage({
   const [profilesResult, studentsResult] = await Promise.all([
     supabase
       .from("profiles")
-      .select("id, full_name, email, role, created_at")
+      .select("id, full_name, email, role, whatsapp, created_at")
       .order("created_at"),
     supabase.from("students").select("id, telefono"),
   ]);
@@ -43,17 +43,23 @@ export default async function UsersPage({
     );
   }
 
-  const phones = new Map(
+  const studentPhones = new Map(
     (studentsResult.data ?? []).map((student) => [student.id, student.telefono])
   );
-  const users: ManagedUserItem[] = (profilesResult.data ?? []).map((profile) => ({
-    createdAt: profile.created_at,
-    email: profile.email,
-    fullName: profile.full_name,
-    id: profile.id,
-    phone: phones.get(profile.id) ?? null,
-    role: normalizeRole(profile.role),
-  }));
+  const users: ManagedUserItem[] = (profilesResult.data ?? []).map((profile) => {
+    const role = normalizeRole(profile.role);
+    return {
+      createdAt: profile.created_at,
+      email: profile.email,
+      fullName: profile.full_name,
+      id: profile.id,
+      phone:
+        role === "alumno"
+          ? studentPhones.get(profile.id) ?? profile.whatsapp ?? null
+          : profile.whatsapp ?? null,
+      role,
+    };
+  });
 
   const successMessage = params.created === "1"
     ? "Usuario creado correctamente."
@@ -102,4 +108,3 @@ export default async function UsersPage({
     </main>
   );
 }
-
