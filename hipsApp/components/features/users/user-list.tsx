@@ -23,9 +23,12 @@ import type { AppRole } from "@/lib/roles";
 
 export type ManagedUserItem = {
   createdAt: string;
-  email: string;
+  editHref: string;
+  email: string | null;
   fullName: string;
+  hasAccount: boolean;
   id: string;
+  membershipStatus: string | null;
   phone: string | null;
   role: AppRole;
 };
@@ -38,6 +41,25 @@ const filters: { label: string; value: Filter }[] = [
   { label: "Alumnos", value: "alumnos" },
 ];
 const EDIT_ACTION_WIDTH = 92;
+
+const membershipMeta: Record<string, { label: string; className: string }> = {
+  activa: {
+    label: "Activa",
+    className: "bg-[oklch(0.93_0.08_145)] text-[oklch(0.38_0.13_145)]",
+  },
+  por_vencer: {
+    label: "Por vencer",
+    className: "bg-[oklch(0.95_0.12_100)] text-[oklch(0.43_0.13_90)]",
+  },
+  vencida: {
+    label: "Vencida",
+    className: "bg-[oklch(0.94_0.07_350)] text-[oklch(0.48_0.18_350)]",
+  },
+  sin_registro: {
+    label: "Sin membresía",
+    className: "bg-secondary text-muted-foreground",
+  },
+};
 
 function roleMeta(role: AppRole) {
   if (role === "superadmin") {
@@ -71,6 +93,7 @@ function formatPhone(phone: string) {
 function UserContent({ user }: { user: ManagedUserItem }) {
   const meta = roleMeta(user.role);
   const Icon = meta.icon;
+  const membership = membershipMeta[user.membershipStatus ?? "sin_registro"];
 
   return (
     <>
@@ -85,13 +108,20 @@ function UserContent({ user }: { user: ManagedUserItem }) {
           </span>
         </span>
         <span className="mt-1 block truncate text-sm text-muted-foreground">
-          {user.email}
+          {user.email ?? (user.hasAccount ? "Sin correo" : "Sin acceso a la PWA")}
         </span>
-        {user.phone ? (
-          <span className="mt-0.5 block text-xs text-muted-foreground">
-            {formatPhone(user.phone)}
-          </span>
-        ) : null}
+        <span className="mt-1 flex flex-wrap items-center gap-1.5">
+          {user.phone ? (
+            <span className="text-xs text-muted-foreground">
+              {formatPhone(user.phone)}
+            </span>
+          ) : null}
+          {user.role === "alumno" ? (
+            <span className={`rounded-full px-2 py-0.5 text-[0.65rem] font-semibold ${membership.className}`}>
+              {membership.label}
+            </span>
+          ) : null}
+        </span>
       </span>
     </>
   );
@@ -176,7 +206,7 @@ function SwipeStudentRow({
   return (
     <li ref={rowRef} className="relative overflow-hidden bg-card">
       <Link
-        href={`/usuarios/${user.id}/editar`}
+        href={user.editHref}
         aria-label={`Editar a ${user.fullName}`}
         onFocus={() => onOpenChange(true)}
         className="absolute inset-y-0 right-0 grid w-[92px] place-items-center bg-primary text-sm font-semibold text-primary-foreground focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-background"
@@ -224,7 +254,7 @@ export function UserList({ users }: { users: ManagedUserItem[] }) {
     return users.filter((user) => {
       const matchesText =
         user.fullName.toLocaleLowerCase("es-MX").includes(normalized) ||
-        user.email.toLocaleLowerCase("es-MX").includes(normalized) ||
+        (user.email ?? "").toLocaleLowerCase("es-MX").includes(normalized) ||
         (user.phone ?? "").includes(normalized);
       const matchesRole =
         filter === "todos" ||
@@ -303,7 +333,7 @@ export function UserList({ users }: { users: ManagedUserItem[] }) {
               return (
                 <li key={user.id}>
                   <Link
-                    href={`/usuarios/${user.id}/editar`}
+                    href={user.editHref}
                     aria-label={`Editar a ${user.fullName}`}
                     className="grid min-h-24 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 transition-colors hover:bg-secondary/60 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary active:bg-secondary"
                   >
