@@ -52,7 +52,6 @@ export function UserEditForm({ user }: { user: EditableUser }) {
     <>
       <form action={updateAction} className="flex flex-1 flex-col gap-5">
         <input name="user_id" type="hidden" value={user.id} />
-        <input name="role" type="hidden" value={user.role} />
 
         <div className="flex items-center gap-3 rounded-2xl border bg-secondary/40 px-4 py-3">
           <span className="grid size-11 place-items-center rounded-full bg-primary/10 text-primary">
@@ -89,34 +88,32 @@ export function UserEditForm({ user }: { user: EditableUser }) {
           />
         </label>
 
-        {user.role === "alumno" ? (
-          <label className="grid gap-2 text-sm font-semibold">
-            Teléfono celular
-            <span className="flex overflow-hidden rounded-xl border border-border bg-card transition focus-within:border-primary focus-within:ring-3 focus-within:ring-ring/25">
-              <span className="flex min-h-12 items-center border-r border-border bg-secondary/60 px-4 text-base font-semibold text-muted-foreground">
-                +52
-              </span>
-              <input
-                className="min-h-12 min-w-0 flex-1 bg-transparent px-4 outline-none"
-                name="phone"
-                type="tel"
-                inputMode="numeric"
-                autoComplete="tel-national"
-                pattern="[0-9]{10}"
-                minLength={10}
-                maxLength={10}
-                defaultValue={nationalPhone(user.phone)}
-                onInput={(event) => {
-                  event.currentTarget.value = keepTenDigits(event.currentTarget.value);
-                }}
-                required
-              />
+        <label className="grid gap-2 text-sm font-semibold">
+          Teléfono celular
+          <span className="flex overflow-hidden rounded-xl border border-border bg-card transition focus-within:border-primary focus-within:ring-3 focus-within:ring-ring/25">
+            <span className="flex min-h-12 items-center border-r border-border bg-secondary/60 px-4 text-base font-semibold text-muted-foreground">
+              +52
             </span>
-            <span className="text-xs font-normal text-muted-foreground">
-              Captura únicamente los 10 dígitos del número mexicano.
-            </span>
-          </label>
-        ) : null}
+            <input
+              className="min-h-12 min-w-0 flex-1 bg-transparent px-4 outline-none"
+              name="phone"
+              type="tel"
+              inputMode="numeric"
+              autoComplete="tel-national"
+              pattern="[0-9]{10}"
+              minLength={10}
+              maxLength={10}
+              defaultValue={nationalPhone(user.phone)}
+              onInput={(event) => {
+                event.currentTarget.value = keepTenDigits(event.currentTarget.value);
+              }}
+              required
+            />
+          </span>
+          <span className="text-xs font-normal text-muted-foreground">
+            Captura únicamente los 10 dígitos del número mexicano.
+          </span>
+        </label>
 
         <label className="grid gap-2 text-sm font-semibold">
           Nueva contraseña <span className="font-normal text-muted-foreground">(opcional)</span>
