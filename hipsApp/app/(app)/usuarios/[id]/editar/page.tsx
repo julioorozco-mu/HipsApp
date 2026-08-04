@@ -10,6 +10,14 @@ import {
 import { normalizeRole } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
 
+type EditableProfile = {
+  email: string;
+  full_name: string;
+  id: string;
+  role: string;
+  whatsapp?: string | null;
+};
+
 export default async function EditUserPage(
   props: { params: Promise<{ id: string }> }
 ) {
@@ -22,11 +30,7 @@ export default async function EditUserPage(
 
   const [actorResult, profileResult, studentResult] = await Promise.all([
     supabase.from("profiles").select("role").eq("id", user.id).maybeSingle(),
-    supabase
-      .from("profiles")
-      .select("id, full_name, email, role, whatsapp")
-      .eq("id", id)
-      .maybeSingle(),
+    supabase.from("profiles").select("*").eq("id", id).maybeSingle(),
     supabase.from("students").select("telefono").eq("id", id).maybeSingle(),
   ]);
 
@@ -39,7 +43,7 @@ export default async function EditUserPage(
     );
   }
 
-  const profile = profileResult.data;
+  const profile = profileResult.data as EditableProfile | null;
   if (!profile?.id || !profile.full_name || !profile.email) notFound();
 
   const role = normalizeRole(profile.role);
