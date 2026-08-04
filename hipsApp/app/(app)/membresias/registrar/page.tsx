@@ -71,6 +71,20 @@ export default async function RegisterPaymentPage(
   }
 
   const paymentSettings = parsePaymentSettings(settingsResult.data);
+  const plans = (plansResult.data ?? []).map((plan) => ({
+    ...plan,
+    price: Number(plan.price),
+  }));
+  const students = (studentsResult.data ?? []).flatMap((student) =>
+    student.id && student.nombre
+      ? [
+          {
+            id: student.id,
+            nombre: student.nombre,
+          },
+        ]
+      : []
+  );
 
   return (
     <main className="min-h-dvh bg-[oklch(0.965_0.018_300)] p-2 sm:p-5">
@@ -97,20 +111,8 @@ export default async function RegisterPaymentPage(
               initialPlanId={initialPlanId}
               initialReference={initialReference}
               initialStudentId={initialStudentId}
-              plans={plansResult.data.map((plan) => ({
-                ...plan,
-                price: Number(plan.price),
-              }))}
-              students={studentsResult.data.flatMap((student) =>
-                student.id && student.nombre
-                  ? [
-                      {
-                        id: student.id,
-                        nombre: student.nombre,
-                      },
-                    ]
-                  : []
-              )}
+              plans={plans}
+              students={students}
               today={todayFormatter.format(new Date())}
               transferDetails={paymentSettings}
             />
