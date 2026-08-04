@@ -10,6 +10,15 @@ import {
 import { normalizeRole } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
 
+type ProfileWithPhone = {
+  created_at: string;
+  email: string;
+  full_name: string;
+  id: string;
+  role: string;
+  whatsapp?: string | null;
+};
+
 export default async function UsersPage({
   searchParams,
 }: {
@@ -28,10 +37,7 @@ export default async function UsersPage({
   if (normalizeRole(currentProfile?.role) !== "superadmin") redirect("/alumnos");
 
   const [profilesResult, studentsResult] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select("id, full_name, email, role, whatsapp, created_at")
-      .order("created_at"),
+    supabase.from("profiles").select("*").order("created_at"),
     supabase.from("students").select("id, telefono"),
   ]);
 
@@ -46,7 +52,8 @@ export default async function UsersPage({
   const studentPhones = new Map(
     (studentsResult.data ?? []).map((student) => [student.id, student.telefono])
   );
-  const users: ManagedUserItem[] = (profilesResult.data ?? []).map((profile) => {
+  const profiles = (profilesResult.data ?? []) as ProfileWithPhone[];
+  const users: ManagedUserItem[] = profiles.map((profile) => {
     const role = normalizeRole(profile.role);
     return {
       createdAt: profile.created_at,
