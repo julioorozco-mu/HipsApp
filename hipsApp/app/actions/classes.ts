@@ -16,6 +16,11 @@ export type FinishClassState = {
   success: boolean;
 };
 
+export type ManualCloseClassResult = {
+  error: string | null;
+  success: boolean;
+};
+
 function validWebUrl(value: string) {
   try {
     return ["http:", "https:"].includes(new URL(value).protocol);
@@ -41,6 +46,69 @@ function finishError(message: string) {
     return "Tu cuenta no tiene permiso para finalizar clases.";
   }
   return `No se pudo finalizar la clase: ${message}`;
+}
+
+function manualCloseError(message: string) {
+  if (message.includes("manual close reason required")) {
+    return "Selecciona o escribe el motivo del cierre.";
+  }
+  if (message.includes("manual close reason too long")) {
+    return "El motivo no puede superar 300 caracteres.";
+  }
+  if (message.includes("operational role required")) {
+    return "Solo Superadmin y Administradores pueden cerrar una clase manualmente.";
+  }
+  if (message.includes("class session not found")) {
+    return "No encontramos la sesión seleccionada.";
+  }
+  if (message.includes("class session is closed")) {
+    return "Esta clase ya está cerrada.";
+  }
+  return `No se pudo cerrar la clase: ${message}`;
+}
+
+export async function closeClassManually(
+  sessionId: string,
+  reason: string
+): Promise<ManualCloseClassResult> {
+  const normalizedReason = reason.trim();
+
+  if (!sessionId) {
+    return { error: "No se pudo validar la clase.", success: false };
+  }
+  if (normalizedReason.length < 5) {
+    return { error: "Selecciona o escribe el motivo del cierre.", success: false };
+  }
+  if (normalizedReason.length > 300) {
+    return { error: "El motivo no puede superar 300 caracteres.", success: false };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Inicia sesión para cerrar la clase.", success: false };
+  }
+
+  const { error } = await supabase.rpc(
+    "close_class_session_manually" as never,
+    {
+      p_reason: normalizedReason,
+      p_session_id: sessionId,
+    } as never
+  );
+
+  if (error) {
+    return { error: manualCloseError(error.message), success: false };
+  }
+
+  revalidatePath("/");
+  revalidatePath("/asistencia");
+  revalidatePath("/asistencia/finalizar");
+
+  return { error: null, success: true };
 }
 
 export async function finishClass(
