@@ -21,8 +21,7 @@ type EditableProfile = {
 export default async function EditUserPage(
   props: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await props.params;
-  const supabase = await createClient();
+  const [{ id }, supabase] = await Promise.all([props.params, createClient()]);
   const {
     data: { user },
   } = await supabase.auth.getUser();

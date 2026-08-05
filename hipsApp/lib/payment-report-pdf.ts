@@ -187,8 +187,10 @@ export async function createPaymentReportPdf({
   document.setAuthor("HipsApp");
   document.setSubject("Reporte financiero de pagos");
 
-  const regular = await document.embedFont(StandardFonts.Helvetica);
-  const bold = await document.embedFont(StandardFonts.HelveticaBold);
+  const [regular, bold] = await Promise.all([
+    document.embedFont(StandardFonts.Helvetica),
+    document.embedFont(StandardFonts.HelveticaBold),
+  ]);
   let pageNumber = 0;
   let page: PDFPage;
   let y = 0;

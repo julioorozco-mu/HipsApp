@@ -371,8 +371,10 @@ export async function refreshPlaylistFromSpotify(playlistId: string) {
     .maybeSingle();
   if (!playlist?.spotify_playlist_id) return;
 
-  const remote = await getSpotifyPlaylist(playlist.spotify_playlist_id, client);
-  const tracks = await getSpotifyPlaylistTracks(playlist.spotify_playlist_id, client);
+  const [remote, tracks] = await Promise.all([
+    getSpotifyPlaylist(playlist.spotify_playlist_id, client),
+    getSpotifyPlaylistTracks(playlist.spotify_playlist_id, client),
+  ]);
   const { error } = await client.supabase
     .from("playlists")
     .update({

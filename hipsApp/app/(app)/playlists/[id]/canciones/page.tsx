@@ -6,8 +6,7 @@ import { TrackManager } from "@/components/features/playlists/track-manager";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function ManageTracksPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const supabase = await createClient();
+  const [{ id }, supabase] = await Promise.all([params, createClient()]);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/acceso");
   const [{ data: playlist }, { data: tracks, error }] = await Promise.all([

@@ -237,12 +237,14 @@ export async function saveSpotifyAuthorization(
       redirect_uri: redirectUri,
     })
   );
-  const profile = await spotifyFetch<SpotifyProfile>(token.access_token, "/me");
-  const { data: existing, error: existingError } = await supabase
-    .from("spotify_connections")
-    .select("refresh_token_ciphertext")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const [profile, { data: existing, error: existingError }] = await Promise.all([
+    spotifyFetch<SpotifyProfile>(token.access_token, "/me"),
+    supabase
+      .from("spotify_connections")
+      .select("refresh_token_ciphertext")
+      .eq("user_id", user.id)
+      .maybeSingle(),
+  ]);
   if (existingError) throw new SpotifyError(existingError.message);
   const refreshToken = token.refresh_token
     ? encryptSecret(token.refresh_token)

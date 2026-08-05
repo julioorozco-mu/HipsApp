@@ -4,8 +4,7 @@ import { TemplateForm } from "@/components/features/more/template-form";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function EditTemplatePage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const supabase = await createClient();
+  const [{ id }, supabase] = await Promise.all([params, createClient()]);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/acceso");
   const { data } = await supabase.from("message_templates").select("*").eq("id", id).maybeSingle();

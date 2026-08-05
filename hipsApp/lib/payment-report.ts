@@ -26,15 +26,15 @@ export type PaymentReportRow = {
 };
 
 const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
+const mexicoDateFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Mexico_City",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
 
 export function currentMonthRange(now = new Date()) {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Mexico_City",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const today = formatter.format(now);
+  const today = mexicoDateFormatter.format(now);
   return { from: `${today.slice(0, 7)}-01`, to: today };
 }
 

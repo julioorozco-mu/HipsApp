@@ -101,8 +101,10 @@ export async function createPaymentReceiptPdf(receipt: PaymentReceipt) {
   document.setSubject("Comprobante de pago");
 
   const page = document.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-  const regular = await document.embedFont(StandardFonts.Helvetica);
-  const bold = await document.embedFont(StandardFonts.HelveticaBold);
+  const [regular, bold] = await Promise.all([
+    document.embedFont(StandardFonts.Helvetica),
+    document.embedFont(StandardFonts.HelveticaBold),
+  ]);
 
   page.drawRectangle({
     x: 0,

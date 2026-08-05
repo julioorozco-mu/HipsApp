@@ -12,6 +12,9 @@ export type StudentFormState = {
 
 const PHONE_LOCAL_MX = /^\d{10}$/;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const mexicoDateFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Mexico_City",
+});
 
 function isValidIsoDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -93,9 +96,7 @@ function parseNewStudentForm(formData: FormData): ParsedNewStudentForm {
 
   const cumpleanos = String(formData.get("cumpleanos") ?? "").trim();
   const correo = String(formData.get("correo") ?? "").trim().toLowerCase();
-  const today = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Mexico_City",
-  }).format(new Date());
+  const today = mexicoDateFormatter.format(new Date());
 
   if (!isValidIsoDate(cumpleanos)) {
     return { error: "Selecciona la fecha de cumpleaños." };
@@ -120,9 +121,7 @@ function parseUpdateStudentForm(formData: FormData): ParsedUpdateStudentForm {
 
   const cumpleanos = String(formData.get("cumpleanos") ?? "").trim();
   const correo = String(formData.get("correo") ?? "").trim().toLowerCase();
-  const today = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Mexico_City",
-  }).format(new Date());
+  const today = mexicoDateFormatter.format(new Date());
 
   if (cumpleanos && (!isValidIsoDate(cumpleanos) || cumpleanos > today)) {
     return { error: "Ingresa una fecha de cumpleaños válida." };

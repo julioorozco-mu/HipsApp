@@ -69,13 +69,15 @@ function calendarDays(start: Date): CalendarDay[] {
   });
 }
 
+const monthFormatter = new Intl.DateTimeFormat("es-MX", {
+  month: "long",
+  year: "numeric",
+});
+
 function monthLabel(days: CalendarDay[]) {
   const first = days[0].date;
   const last = days.at(-1)?.date ?? first;
-  const month = new Intl.DateTimeFormat("es-MX", {
-    month: "long",
-    year: "numeric",
-  });
+  const month = monthFormatter;
 
   if (
     first.getMonth() === last.getMonth() &&

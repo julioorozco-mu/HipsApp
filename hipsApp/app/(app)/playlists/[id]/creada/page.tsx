@@ -7,8 +7,7 @@ import { PlaylistShell } from "@/components/features/playlists/playlist-shell";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function PlaylistCreatedPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const supabase = await createClient();
+  const [{ id }, supabase] = await Promise.all([params, createClient()]);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/acceso");
   const { data: playlist } = await supabase.from("playlists").select("id, name").eq("id", id).eq("spotify_owner_id", user.id).maybeSingle();

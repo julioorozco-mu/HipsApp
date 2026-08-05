@@ -10,8 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 const syncedFormatter = new Intl.DateTimeFormat("es-MX", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Mexico_City" });
 
 export default async function SyncCompletedPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const supabase = await createClient();
+  const [{ id }, supabase] = await Promise.all([params, createClient()]);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/acceso");
   const { data: playlist } = await supabase.from("playlists").select("id, name, external_url, synced_at, playlist_tracks(count)").eq("id", id).eq("spotify_owner_id", user.id).maybeSingle();

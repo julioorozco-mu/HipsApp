@@ -17,6 +17,7 @@ const days = [
 ];
 
 type Interval = { end: string; start: string };
+type KeyedInterval = Interval & { key: string };
 
 export type ClassOccupiedSchedule = {
   end: string;
@@ -254,7 +255,9 @@ export function ClassForm({
   playlists = [],
   submitLabel,
 }: ClassFormProps) {
-  const [intervals, setIntervals] = useState<Interval[]>(defaultIntervals);
+  const [intervals, setIntervals] = useState<KeyedInterval[]>(() =>
+    defaultIntervals.map((interval) => ({ ...interval, key: crypto.randomUUID() }))
+  );
   const [selectedWeekdays, setSelectedWeekdays] = useState<number[]>(defaultWeekdays);
   const availableNextInterval = nextInterval(
     intervals,
@@ -267,7 +270,7 @@ export function ClassForm({
       current.map((interval, itemIndex) => {
         if (itemIndex !== index) return interval;
         if (field === "start") {
-          return { start: value, end: oneHourLater(value) ?? interval.end };
+          return { ...interval, start: value, end: oneHourLater(value) ?? interval.end };
         }
         return { ...interval, end: value };
       })
@@ -283,13 +286,19 @@ export function ClassForm({
 
     setSelectedWeekdays(nextWeekdays);
     setIntervals((current) =>
-      reconcileIntervals(current, nextWeekdays, occupiedSchedules)
+      reconcileIntervals(current, nextWeekdays, occupiedSchedules).map(
+        (interval, itemIndex) => ({ ...interval, key: current[itemIndex].key })
+      )
     );
   }
 
   return (
     <ActionForm action={action} label={submitLabel}>
-      <input type="hidden" name="schedules" value={JSON.stringify(intervals)} />
+      <input
+        type="hidden"
+        name="schedules"
+        value={JSON.stringify(intervals.map(({ end, start }) => ({ end, start })))}
+      />
 
       <label className="grid gap-2 text-sm font-semibold">
         Nombre de la clase
@@ -361,7 +370,10 @@ export function ClassForm({
               disabled={!availableNextInterval}
               onClick={() => {
                 if (!availableNextInterval) return;
-                setIntervals((current) => [...current, availableNextInterval]);
+                setIntervals((current) => [
+                  ...current,
+                  { ...availableNextInterval, key: crypto.randomUUID() },
+                ]);
               }}
               className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl border border-primary px-3 text-sm font-semibold text-primary disabled:cursor-not-allowed disabled:opacity-40"
             >
@@ -380,7 +392,7 @@ export function ClassForm({
             occupiedSchedules
           );
           return (
-            <div key={index} className="rounded-2xl border p-3">
+            <div key={interval.key} className="rounded-2xl border p-3">
               <div className="grid grid-cols-[1fr_auto_1fr_auto] items-end gap-2">
                 <label className="grid gap-2 text-xs font-semibold text-muted-foreground">
                   Desde

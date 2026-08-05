@@ -16,6 +16,7 @@ import {
 
 type PreviewTrack = {
   artist: string | null;
+  key: string;
   spotifyUri: string;
   title: string;
 };
@@ -41,8 +42,8 @@ function TrackList({ empty, tracks }: { empty: string; tracks: PreviewTrack[] })
 
   return (
     <ul className="divide-y border-t">
-      {tracks.map((track, index) => (
-        <li key={`${track.spotifyUri}-${index}`} className="px-4 py-3">
+      {tracks.map((track) => (
+        <li key={track.key} className="px-4 py-3">
           <p className="truncate text-sm font-medium">{track.title}</p>
           {track.artist ? (
             <p className="truncate text-xs text-muted-foreground">{track.artist}</p>
@@ -54,8 +55,7 @@ function TrackList({ empty, tracks }: { empty: string; tracks: PreviewTrack[] })
 }
 
 export default async function ReviewSyncPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const supabase = await createClient();
+  const [{ id }, supabase] = await Promise.all([params, createClient()]);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/acceso");
 
@@ -68,7 +68,7 @@ export default async function ReviewSyncPage({ params }: { params: Promise<{ id:
       .maybeSingle(),
     supabase
       .from("playlist_tracks")
-      .select("title, artist, spotify_uri")
+      .select("id, title, artist, spotify_uri")
       .eq("playlist_id", id)
       .order("position"),
   ]);
@@ -78,7 +78,7 @@ export default async function ReviewSyncPage({ params }: { params: Promise<{ id:
   const action = synchronizePlaylist.bind(null, id);
   const localTracks: PreviewTrack[] = (localRows ?? []).flatMap((track) =>
     track.spotify_uri
-      ? [{ artist: track.artist, spotifyUri: track.spotify_uri, title: track.title }]
+      ? [{ artist: track.artist, key: track.id, spotifyUri: track.spotify_uri, title: track.title }]
       : []
   );
   let remoteTracks: PreviewTrack[] = [];
@@ -97,6 +97,7 @@ export default async function ReviewSyncPage({ params }: { params: Promise<{ id:
     ]);
     remoteTracks = spotifyTracks.map((track) => ({
       artist: track.artist,
+      key: crypto.randomUUID(),
       spotifyUri: track.spotifyUri,
       title: track.title,
     }));

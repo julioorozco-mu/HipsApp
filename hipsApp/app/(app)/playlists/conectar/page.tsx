@@ -12,8 +12,7 @@ export default async function ConnectSpotifyPage({
 }: {
   searchParams: Promise<{ error?: string | string[] }>;
 }) {
-  const { error } = await searchParams;
-  const supabase = await createClient();
+  const [{ error }, supabase] = await Promise.all([searchParams, createClient()]);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/acceso");
   const message = typeof error === "string" ? error : null;

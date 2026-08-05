@@ -38,8 +38,7 @@ function initials(name: string) {
 export default async function StudentProfilePage(
   props: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await props.params;
-  const supabase = await createClient();
+  const [{ id }, supabase] = await Promise.all([props.params, createClient()]);
   const {
     data: { user },
   } = await supabase.auth.getUser();

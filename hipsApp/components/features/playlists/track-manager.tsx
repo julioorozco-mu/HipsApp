@@ -6,6 +6,8 @@ import { ArrowDown, ArrowUp, CheckCircle2, LoaderCircle, Minus, Plus, Search } f
 import type { PlaylistActionState } from "@/app/actions/playlists";
 import type { SpotifyTrack } from "@/lib/spotify/types";
 
+type ManagedTrack = SpotifyTrack & { key: string };
+
 function duration(seconds: number | null) {
   if (!seconds) return "—";
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
@@ -18,7 +20,9 @@ export function TrackManager({
   action: (state: PlaylistActionState, formData: FormData) => Promise<PlaylistActionState>;
   initialTracks: SpotifyTrack[];
 }) {
-  const [tracks, setTracks] = useState<SpotifyTrack[]>(initialTracks);
+  const [tracks, setTracks] = useState<ManagedTrack[]>(() =>
+    initialTracks.map((track) => ({ ...track, key: crypto.randomUUID() }))
+  );
   const [results, setResults] = useState<SpotifyTrack[]>([]);
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
@@ -52,11 +56,11 @@ export function TrackManager({
   }
 
   function addTrack(track: SpotifyTrack) {
-    setTracks((current) => [...current, track]);
+    setTracks((current) => [...current, { ...track, key: crypto.randomUUID() }]);
     notify(`“${track.title}” se agregó a la playlist.`);
   }
 
-  function removeTrack(index: number, track: SpotifyTrack) {
+  function removeTrack(index: number, track: ManagedTrack) {
     setTracks((current) => current.filter((_, itemIndex) => itemIndex !== index));
     notify(`“${track.title}” se eliminó de la playlist.`);
   }
@@ -133,7 +137,7 @@ export function TrackManager({
         <h2 className="mb-2 text-sm font-semibold">En la playlist · {tracks.length}</h2>
         <div className="grid gap-1">
           {tracks.map((track, index) => (
-            <div key={`${track.spotifyUri}-${index}`} className="flex items-center gap-2 rounded-xl border px-3 py-2">
+            <div key={track.key} className="flex items-center gap-2 rounded-xl border px-3 py-2">
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium">{track.title}</span>
                 <span className="block truncate text-xs text-muted-foreground">{track.artist}</span>
@@ -150,7 +154,11 @@ export function TrackManager({
       </section>
 
       <form action={formAction} className="mt-auto pt-5">
-        <input type="hidden" name="tracks" value={JSON.stringify(tracks)} />
+        <input
+          type="hidden"
+          name="tracks"
+          value={JSON.stringify(tracks.map(({ key: _, ...track }) => track))}
+        />
         {state.error ? <p role="alert" className="mb-3 text-sm text-destructive">{state.error}</p> : null}
         <button type="submit" disabled={pending} className="min-h-13 w-full rounded-xl bg-primary px-4 font-semibold text-primary-foreground disabled:opacity-60">
           {pending ? "Actualizando…" : "Actualizar playlist"}

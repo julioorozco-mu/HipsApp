@@ -28,13 +28,15 @@ function endTime(start: string, duration: number) {
   return formatTime(hour * 60 + minute + duration);
 }
 
+const mexicoTimeFormatter = new Intl.DateTimeFormat("en-US", {
+  hour: "2-digit",
+  hourCycle: "h23",
+  minute: "2-digit",
+  timeZone: "America/Mexico_City",
+});
+
 function nextHalfHourInterval() {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    hour: "2-digit",
-    hourCycle: "h23",
-    minute: "2-digit",
-    timeZone: "America/Mexico_City",
-  }).formatToParts(new Date());
+  const parts = mexicoTimeFormatter.formatToParts(new Date());
   const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
   const nowMinutes = Number(values.hour) * 60 + Number(values.minute);
   const rounded = (Math.floor(nowMinutes / 30) + 1) * 30;
