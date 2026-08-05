@@ -5,7 +5,6 @@ import {
   CheckCircle2,
   CircleDot,
   Clock3,
-  MoreHorizontal,
   PlayCircle,
 } from "lucide-react";
 
@@ -14,6 +13,8 @@ import {
   AttendanceList,
   type AttendanceStudent,
 } from "@/components/features/attendance/attendance-list";
+import { ClassCloseMenu } from "@/components/features/attendance/class-close-menu";
+import { normalizeRole } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
 
 const classTimeFormatter = new Intl.DateTimeFormat("es-MX", {
@@ -35,6 +36,8 @@ type SessionRow = {
   attendance_saved_at: string | null;
   class_id: string | null;
   class_name: string | null;
+  closure_mode: string | null;
+  closure_reason: string | null;
   id: string | null;
   present_count: number | null;
   starts_at: string | null;
@@ -53,6 +56,8 @@ type SessionState =
 type AttendanceSession = {
   attendanceSaved: boolean;
   className: string;
+  closureMode: string | null;
+  closureReason: string | null;
   durationMinutes: number;
   endsAt: Date;
   id: string;
@@ -94,7 +99,14 @@ function stateLabel(session: AttendanceSession) {
   if (session.state === "started") return "Inició · asistencia pendiente";
   if (session.state === "in_progress") return "En curso";
   if (session.state === "closing") return "Pendiente de cierre";
-  if (session.state === "completed") return "Finalizada";
+  if (session.state === "completed") {
+    if (session.closureMode === "manual") return "Cerrada manualmente";
+    if (session.closureMode === "automatic" && !session.attendanceSaved) {
+      return "Cerrada sin asistencia";
+    }
+    if (session.closureMode === "automatic") return "Finalizada automáticamente";
+    return "Finalizada";
+  }
   return "Horario concluido";
 }
 
@@ -137,7 +149,9 @@ function SessionLink({
 
   const inactiveTone =
     session.state === "completed"
-      ? "border-[oklch(0.78_0.12_145)] bg-[oklch(0.96_0.05_145)] text-[oklch(0.34_0.1_145)]"
+      ? session.closureMode === "manual"
+        ? "border-[oklch(0.82_0.12_70)] bg-[oklch(0.97_0.05_75)] text-[oklch(0.43_0.13_60)]"
+        : "border-[oklch(0.78_0.12_145)] bg-[oklch(0.96_0.05_145)] text-[oklch(0.34_0.1_145)]"
       : session.state === "closing"
         ? "border-[oklch(0.82_0.12_80)] bg-[oklch(0.97_0.05_80)] text-[oklch(0.45_0.13_70)]"
         : session.state === "in_progress"
@@ -151,9 +165,7 @@ function SessionLink({
       href={`/asistencia?session=${session.id}`}
       aria-current={active ? "page" : undefined}
       className={`min-w-48 shrink-0 rounded-2xl border px-4 py-3 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
-        active
-          ? "border-primary bg-primary text-primary-foreground"
-          : inactiveTone
+        active ? "border-primary bg-primary text-primary-foreground" : inactiveTone
       }`}
     >
       <span className="block truncate font-semibold">{session.className}</span>
@@ -172,15 +184,16 @@ function SessionLink({
 export default async function AttendancePage({
   searchParams,
 }: {
-  searchParams: Promise<{ session?: string }>;
+  searchParams: Promise<{ closed?: string; session?: string }>;
 }) {
+  const params = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   const today = mexicoDate();
   const range = dayRange(today);
-  const requestedSession = (await searchParams).session;
+  const requestedSession = params.session;
   const now = new Date();
 
   if (user) {
@@ -191,6 +204,10 @@ export default async function AttendancePage({
     if (ensureError) {
       throw new Error(`No se pudieron preparar las clases de hoy: ${ensureError.message}`);
     }
+
+    // Respaldo inmediato del cron: si la pantalla se abre justo después del
+    // final del horario, el estado ya llega cerrado y consistente.
+    await supabase.rpc("close_expired_class_sessions" as never);
   }
 
   const results = user
@@ -204,16 +221,22 @@ export default async function AttendancePage({
         supabase
           .from("session_overview")
           .select(
-            "id, class_id, class_name, starts_at, status, attendance_saved_at, present_count"
+            "id, class_id, class_name, starts_at, status, attendance_saved_at, present_count, closure_mode, closure_reason" as never
           )
           .gte("starts_at", range.start)
           .lt("starts_at", range.end)
           .neq("status", "cancelada")
           .order("starts_at"),
+        supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .maybeSingle(),
       ])
     : null;
   const data = results?.[0].data ?? [];
-  const sessionData = (results?.[1].data ?? []) as SessionRow[];
+  const sessionData = (results?.[1].data ?? []) as unknown as SessionRow[];
+  const profile = results?.[2].data ?? null;
   const error = results?.[0].error;
   const sessionError = results?.[1].error;
 
@@ -284,20 +307,15 @@ export default async function AttendancePage({
       {
         attendanceSaved,
         className: session.class_name,
+        closureMode: session.closure_mode,
+        closureReason: session.closure_reason,
         durationMinutes,
         endsAt,
         id: session.id,
         opensAt,
         presentCount: Number(session.present_count ?? 0),
         startsAt,
-        state: sessionState(
-          status,
-          attendanceSaved,
-          startsAt,
-          opensAt,
-          endsAt,
-          now
-        ),
+        state: sessionState(status, attendanceSaved, startsAt, opensAt, endsAt, now),
         status,
       },
     ];
@@ -322,20 +340,16 @@ export default async function AttendancePage({
 
   const students: AttendanceStudent[] = data.flatMap((student) =>
     student.id && student.nombre
-      ? [
-          {
-            id: student.id,
-            nombre: student.nombre,
-          },
-        ]
+      ? [{ id: student.id, nombre: student.nombre }]
       : []
   );
 
+  const role = normalizeRole(profile?.role);
+  const canCloseManually = role === "superadmin" || role === "admin";
   const mode =
     selectedSession?.state === "ready" || selectedSession?.state === "started"
       ? "open"
-      : selectedSession?.state === "in_progress" ||
-          selectedSession?.state === "closing"
+      : selectedSession?.state === "in_progress" || selectedSession?.state === "closing"
         ? "saved"
         : "disabled";
   const canFinalize = Boolean(
@@ -352,11 +366,11 @@ export default async function AttendancePage({
         : selectedSession.state === "started"
           ? "La clase ya inició. Guarda la asistencia para marcarla en curso."
           : selectedSession.state === "in_progress"
-            ? "La clase está en curso y ya puede finalizarse cuando corresponda."
+            ? "La clase está en curso. Puedes finalizarla normalmente o cerrarla desde el menú si ocurre una excepción."
             : selectedSession.state === "closing"
-              ? "El horario terminó. Finaliza la clase para cerrar el registro."
+              ? "El horario terminó. La sesión se cerrará automáticamente."
               : selectedSession.state === "completed"
-                ? "Esta clase ya fue finalizada."
+                ? selectedSession.closureReason ?? "Esta clase ya fue finalizada."
                 : "El horario concluyó sin una asistencia guardada.";
 
   return (
@@ -373,24 +387,32 @@ export default async function AttendancePage({
                 {capitalize(dateFormatter.format(new Date(`${today}T12:00:00-06:00`)))}
               </p>
             </div>
-            <button
-              type="button"
-              aria-label="Más opciones"
-              className="grid size-12 shrink-0 place-items-center rounded-full transition-colors hover:bg-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary active:bg-accent"
-            >
-              <MoreHorizontal className="size-7" strokeWidth={2.5} />
-            </button>
+            <ClassCloseMenu
+              className={selectedSession?.className ?? null}
+              disabled={
+                !canCloseManually ||
+                !selectedSession ||
+                selectedSession.state === "completed"
+              }
+              endsAt={selectedSession?.endsAt.toISOString() ?? null}
+              sessionId={selectedSession?.id ?? null}
+              startsAt={selectedSession?.startsAt.toISOString() ?? null}
+            />
           </header>
+
+          {params.closed === "manual" ? (
+            <p className="mt-4 flex items-center gap-2 rounded-xl bg-[oklch(0.94_0.07_145)] px-4 py-3 text-sm font-semibold text-[oklch(0.34_0.09_145)]">
+              <CheckCircle2 className="size-5 shrink-0" />
+              Clase cerrada manualmente y guardada en el historial.
+            </p>
+          ) : null}
 
           {currentSessions.length ? (
             <section className="mt-5 shrink-0" aria-labelledby="today-classes">
               <h2 id="today-classes" className="mb-2 text-sm font-semibold text-muted-foreground">
                 Clases de hoy
               </h2>
-              <nav
-                aria-label="Clases disponibles hoy"
-                className="flex gap-2 overflow-x-auto pb-1"
-              >
+              <nav aria-label="Clases disponibles hoy" className="flex gap-2 overflow-x-auto pb-1">
                 {currentSessions.map((item) => (
                   <SessionLink
                     key={item.id}
@@ -405,9 +427,9 @@ export default async function AttendancePage({
           {previousSessions.length ? (
             <details className="mt-3 shrink-0 rounded-xl border bg-secondary/30 px-3 py-2">
               <summary className="cursor-pointer text-sm font-semibold">
-                Clases cerradas o vencidas ({previousSessions.length})
+                Clases cerradas ({previousSessions.length})
               </summary>
-              <nav className="mt-2 flex gap-2 overflow-x-auto pb-1" aria-label="Clases anteriores">
+              <nav className="mt-2 flex gap-2 overflow-x-auto pb-1" aria-label="Clases cerradas">
                 {previousSessions.map((item) => (
                   <SessionLink
                     key={item.id}
