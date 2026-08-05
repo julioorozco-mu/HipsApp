@@ -1,11 +1,15 @@
 "use client";
 
 import {
+  AlertTriangle,
   Bell,
   CalendarClock,
   CheckCheck,
+  CheckCircle2,
+  CircleDot,
   Clock3,
   Inbox,
+  PlayCircle,
   UsersRound,
 } from "lucide-react";
 import Link from "next/link";
@@ -19,12 +23,56 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
+export type ClassNotificationStatus =
+  | "scheduled"
+  | "ready"
+  | "started"
+  | "in_progress"
+  | "closing"
+  | "completed"
+  | "missed";
+
 export type HomeNotification = {
+  classStatus?: ClassNotificationStatus;
   description: string;
   href: string;
   id: string;
   kind: "class" | "membership" | "system";
   title: string;
+};
+
+const classStatusMeta: Record<
+  ClassNotificationStatus,
+  { label: string; className: string }
+> = {
+  scheduled: {
+    label: "Programada",
+    className: "bg-secondary text-muted-foreground",
+  },
+  ready: {
+    label: "Lista para iniciar",
+    className: "bg-primary/10 text-primary",
+  },
+  started: {
+    label: "Inició",
+    className: "bg-[oklch(0.94_0.08_280)] text-[oklch(0.45_0.18_285)]",
+  },
+  in_progress: {
+    label: "En curso",
+    className: "bg-[oklch(0.93_0.08_145)] text-[oklch(0.37_0.13_145)]",
+  },
+  closing: {
+    label: "Pendiente de cierre",
+    className: "bg-[oklch(0.96_0.09_80)] text-[oklch(0.47_0.14_70)]",
+  },
+  completed: {
+    label: "Finalizada",
+    className: "bg-[oklch(0.92_0.09_150)] text-[oklch(0.34_0.12_150)]",
+  },
+  missed: {
+    label: "Sin asistencia",
+    className: "bg-destructive/10 text-destructive",
+  },
 };
 
 function storageKey(userId: string) {
@@ -49,18 +97,33 @@ function writeStoredIds(userId: string, ids: Set<string>) {
   }
 }
 
-function notificationIcon(kind: HomeNotification["kind"]) {
-  if (kind === "class") return CalendarClock;
-  if (kind === "membership") return UsersRound;
-  return Clock3;
+function notificationIcon(item: HomeNotification) {
+  if (item.kind === "membership") return UsersRound;
+  if (item.kind !== "class") return Clock3;
+  if (item.classStatus === "completed") return CheckCircle2;
+  if (item.classStatus === "closing" || item.classStatus === "missed") {
+    return AlertTriangle;
+  }
+  if (item.classStatus === "in_progress") return PlayCircle;
+  if (item.classStatus === "started") return CircleDot;
+  return CalendarClock;
 }
 
-function notificationTone(kind: HomeNotification["kind"]) {
-  if (kind === "class") return "bg-primary/10 text-primary";
-  if (kind === "membership") {
+function notificationTone(item: HomeNotification) {
+  if (item.kind === "membership") {
     return "bg-[oklch(0.94_0.12_105)] text-[oklch(0.43_0.13_90)]";
   }
-  return "bg-secondary text-foreground";
+  if (item.kind !== "class") return "bg-secondary text-foreground";
+  if (item.classStatus === "completed") {
+    return "bg-[oklch(0.92_0.09_150)] text-[oklch(0.34_0.12_150)]";
+  }
+  if (item.classStatus === "closing" || item.classStatus === "missed") {
+    return "bg-[oklch(0.96_0.09_80)] text-[oklch(0.47_0.14_70)]";
+  }
+  if (item.classStatus === "in_progress") {
+    return "bg-[oklch(0.93_0.08_145)] text-[oklch(0.37_0.13_145)]";
+  }
+  return "bg-primary/10 text-primary";
 }
 
 export function NotificationCenter({
@@ -136,7 +199,7 @@ export function NotificationCenter({
             ) : null}
           </div>
           <DialogDescription>
-            Clases próximas y avisos que requieren tu atención.
+            Estado de clases, cierres pendientes y avisos de membresía.
           </DialogDescription>
         </DialogHeader>
 
@@ -144,8 +207,11 @@ export function NotificationCenter({
           {items.length ? (
             <div className="space-y-2">
               {items.map((item) => {
-                const Icon = notificationIcon(item.kind);
+                const Icon = notificationIcon(item);
                 const unread = !readIds.has(item.id);
+                const status = item.classStatus
+                  ? classStatusMeta[item.classStatus]
+                  : null;
 
                 return (
                   <Link
@@ -155,13 +221,22 @@ export function NotificationCenter({
                     className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 rounded-2xl border px-3.5 py-3.5 transition-colors hover:bg-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                   >
                     <span
-                      className={`grid size-11 place-items-center rounded-2xl ${notificationTone(item.kind)}`}
+                      className={`grid size-11 place-items-center rounded-2xl ${notificationTone(item)}`}
                     >
                       <Icon className="size-5.5" />
                     </span>
                     <span className="min-w-0">
-                      <span className="block font-semibold leading-snug">
-                        {item.title}
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold leading-snug">
+                          {item.title}
+                        </span>
+                        {status ? (
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[0.65rem] font-semibold ${status.className}`}
+                          >
+                            {status.label}
+                          </span>
+                        ) : null}
                       </span>
                       <span className="mt-1 block text-sm leading-snug text-muted-foreground">
                         {item.description}
