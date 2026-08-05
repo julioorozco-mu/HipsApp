@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: "/manifest.webmanifest",
+        source: "/manifest.json",
         headers: [
           {
             key: "Content-Type",
