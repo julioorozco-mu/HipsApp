@@ -143,8 +143,8 @@ export async function finishClass(
   }
 
   const { data: completedSession, error: completedError } = await supabase
-    .from("session_overview")
-    .select("class_name, finished_at, notes, present_count")
+    .from("class_sessions")
+    .select("finished_at, notes")
     .eq("id", sessionId)
     .maybeSingle();
 
@@ -160,14 +160,14 @@ export async function finishClass(
   revalidatePath("/asistencia/finalizar");
   revalidatePath("/mensajes");
 
-  const className = completedSession?.class_name ?? session.class_name ?? "la clase";
+  const className = session.class_name ?? "la clase";
   return {
     className,
     error: null,
     finishedAt: completedSession?.finished_at ?? new Date().toISOString(),
     notes: completedSession?.notes ?? null,
     playlistName,
-    presentCount: Number(completedSession?.present_count ?? session.present_count ?? 0),
+    presentCount: Number(session.present_count ?? 0),
     success: true,
     ...(sendPlaylist && playlistUrl
       ? {
