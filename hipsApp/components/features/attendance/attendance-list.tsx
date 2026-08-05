@@ -10,7 +10,6 @@ import {
   Search,
 } from "lucide-react";
 import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 
 import { saveAttendance } from "@/app/actions/attendance";
 import { Button } from "@/components/ui/button";
@@ -51,7 +50,6 @@ export function AttendanceList({
   );
   const [message, setMessage] = useState("");
   const [isPending, startTransition] = useTransition();
-  const router = useRouter();
   const editable = mode === "open";
 
   const filteredStudents = useMemo(() => {
@@ -73,15 +71,24 @@ export function AttendanceList({
   }
 
   function handleSave() {
-    if (!editable) return;
+    if (!editable || !sessionId) return;
     startTransition(async () => {
       setMessage("");
-      const result = await saveAttendance(sessionId ?? "", [...presentIds]);
-      if (result.error) {
-        setMessage(result.error);
-        return;
+      try {
+        const result = await saveAttendance(sessionId, [...presentIds]);
+        if (result.error) {
+          setMessage(result.error);
+          return;
+        }
+
+        // La navegación completa evita errores de transición RSC/PWA después
+        // de una Server Action y garantiza datos frescos de la sesión.
+        window.location.assign(`/asistencia/finalizar?session=${sessionId}`);
+      } catch {
+        setMessage(
+          "La asistencia pudo haberse guardado, pero no se pudo abrir el cierre. Recarga esta pantalla para verificarla."
+        );
       }
-      router.push(`/asistencia/finalizar?session=${sessionId}`);
     });
   }
 
@@ -201,12 +208,12 @@ export function AttendanceList({
               </div>
             </div>
             {canFinalize ? (
-              <Link
+              <a
                 href={`/asistencia/finalizar?session=${sessionId}`}
                 className="flex min-h-14 items-center justify-center rounded-xl bg-primary px-5 text-base font-semibold text-primary-foreground transition-colors hover:bg-primary/85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
                 Continuar a Finalizar clase
-              </Link>
+              </a>
             ) : (
               <div className="flex min-h-14 items-center justify-center gap-2 rounded-xl bg-secondary px-4 text-center text-sm font-medium text-muted-foreground">
                 <Clock3 className="size-5 shrink-0" />
