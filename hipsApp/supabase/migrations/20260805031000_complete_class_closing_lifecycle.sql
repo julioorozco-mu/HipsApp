@@ -19,15 +19,15 @@ select
   class.name as class_name,
   session.instructor_id,
   session.starts_at,
-  session.started_at,
   session.status,
   session.attendance_saved_at,
   session.finished_at,
-  session.finished_by,
   session.playlist_url,
-  session.notes,
   count(*) filter (where attendance.status = 'presente'::public.attendance_status) as present_count,
-  count(*) filter (where attendance.status = 'ausente'::public.attendance_status) as absent_count
+  count(*) filter (where attendance.status = 'ausente'::public.attendance_status) as absent_count,
+  session.started_at,
+  session.finished_by,
+  session.notes
 from public.class_sessions session
 join public.classes class on class.id = session.class_id
 left join public.attendance attendance on attendance.session_id = session.id
