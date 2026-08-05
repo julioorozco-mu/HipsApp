@@ -12,6 +12,7 @@ import {
 import { AppNav } from "@/components/app-nav";
 import {
   NotificationCenter,
+  type ClassNotificationStatus,
   type HomeNotification,
 } from "@/components/features/home/notification-center";
 import { Card } from "@/components/ui/card";
@@ -35,8 +36,97 @@ const notificationDateFormatter = new Intl.DateTimeFormat("es-MX", {
   timeZone: "America/Mexico_City",
 });
 
+const mexicoDateFormatter = new Intl.DateTimeFormat("en-US", {
+  day: "2-digit",
+  month: "2-digit",
+  timeZone: "America/Mexico_City",
+  year: "numeric",
+});
+
+type SessionRow = {
+  attendance_saved_at: string | null;
+  class_id: string | null;
+  class_name: string | null;
+  finished_at: string | null;
+  id: string | null;
+  starts_at: string | null;
+  status: string | null;
+};
+
+type HomeSession = {
+  attendanceSaved: boolean;
+  className: string;
+  endsAt: Date;
+  finishedAt: Date | null;
+  id: string;
+  lifecycle: ClassNotificationStatus;
+  startsAt: Date;
+};
+
 function greetingName(fullName: string | null | undefined) {
   return fullName?.trim().split(/\s+/).slice(0, 2).join(" ") ?? "";
+}
+
+function mexicoDate() {
+  const parts = mexicoDateFormatter.formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function dayRange(date: string) {
+  const start = new Date(`${date}T00:00:00-06:00`);
+  return {
+    start: start.toISOString(),
+    end: new Date(start.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+  };
+}
+
+function classLifecycle(
+  status: string,
+  attendanceSaved: boolean,
+  startsAt: Date,
+  endsAt: Date,
+  now: Date
+): ClassNotificationStatus {
+  if (status === "completada") return "completed";
+  if (attendanceSaved) {
+    return now > endsAt ? "closing" : "in_progress";
+  }
+  const opensAt = new Date(startsAt.getTime() - 15 * 60 * 1000);
+  if (now < opensAt) return "scheduled";
+  if (now < startsAt) return "ready";
+  if (now <= endsAt) return "started";
+  return "missed";
+}
+
+function notificationDescription(session: HomeSession) {
+  const start = notificationDateFormatter.format(session.startsAt);
+  const end = classTimeFormatter.format(session.endsAt);
+
+  if (session.lifecycle === "scheduled") return `Programada para ${start}.`;
+  if (session.lifecycle === "ready") {
+    return `La asistencia ya está disponible. Inicia a las ${classTimeFormatter.format(session.startsAt)}.`;
+  }
+  if (session.lifecycle === "started") {
+    return `Inició a las ${classTimeFormatter.format(session.startsAt)}. Falta guardar asistencia.`;
+  }
+  if (session.lifecycle === "in_progress") {
+    return `Inició a las ${classTimeFormatter.format(session.startsAt)} y termina a las ${end}.`;
+  }
+  if (session.lifecycle === "closing") {
+    return `El horario terminó a las ${end}. Falta cerrar la sesión.`;
+  }
+  if (session.lifecycle === "completed") {
+    return `Cerrada ${session.finishedAt ? notificationDateFormatter.format(session.finishedAt) : "correctamente"}.`;
+  }
+  return `El horario terminó a las ${end} sin asistencia guardada.`;
+}
+
+function sessionHref(session: HomeSession) {
+  if (session.lifecycle === "closing") {
+    return `/asistencia/finalizar?session=${session.id}`;
+  }
+  return `/asistencia?session=${session.id}`;
 }
 
 export default async function HomePage() {
@@ -44,6 +134,20 @@ export default async function HomePage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const today = mexicoDate();
+  const range = dayRange(today);
+  const now = new Date();
+
+  if (user) {
+    const { error: ensureError } = await supabase.rpc(
+      "ensure_daily_class_sessions" as never,
+      { p_date: today } as never
+    );
+    if (ensureError) {
+      throw new Error(`No se pudieron preparar las clases de hoy: ${ensureError.message}`);
+    }
+  }
+
   const results = user
     ? await Promise.all([
         supabase
@@ -56,11 +160,13 @@ export default async function HomePage() {
           .eq("membership_status", "por_vencer"),
         supabase
           .from("session_overview")
-          .select("id, class_name, starts_at")
-          .in("status", ["programada", "en_curso"])
-          .order("starts_at")
-          .limit(1)
-          .maybeSingle(),
+          .select(
+            "id, class_id, class_name, starts_at, status, attendance_saved_at, finished_at"
+          )
+          .gte("starts_at", range.start)
+          .lt("starts_at", range.end)
+          .neq("status", "cancelada")
+          .order("starts_at"),
         supabase
           .from("profiles")
           .select("full_name, current_class_streak, role")
@@ -68,33 +174,86 @@ export default async function HomePage() {
           .maybeSingle(),
       ])
     : null;
+
   const studentCount = results?.[0].count ?? 0;
   const expiringCount = results?.[1].count ?? 0;
-  const nextSession = results?.[2].data ?? null;
+  const sessionRows = (results?.[2].data ?? []) as SessionRow[];
   const profile = results?.[3].data ?? null;
+  const sessionError = results?.[2].error;
+  if (sessionError) {
+    throw new Error(`No se pudieron cargar las clases de hoy: ${sessionError.message}`);
+  }
+
+  const classIds = sessionRows.flatMap((session) =>
+    session.class_id ? [session.class_id] : []
+  );
+  const { data: classRows, error: classError } =
+    user && classIds.length
+      ? await supabase
+          .from("classes")
+          .select("id, duration_minutes")
+          .in("id", classIds)
+      : { data: [], error: null };
+
+  if (classError) {
+    throw new Error(`No se pudo calcular la duración de las clases: ${classError.message}`);
+  }
+
+  const durationByClass = new Map(
+    (classRows ?? []).map((item) => [item.id, item.duration_minutes])
+  );
+  const sessions: HomeSession[] = sessionRows.flatMap((session) => {
+    if (!session.id || !session.class_id || !session.class_name || !session.starts_at) {
+      return [];
+    }
+    const startsAt = new Date(session.starts_at);
+    const durationMinutes = durationByClass.get(session.class_id) ?? 60;
+    const endsAt = new Date(startsAt.getTime() + durationMinutes * 60 * 1000);
+    const attendanceSaved = Boolean(session.attendance_saved_at);
+    return [
+      {
+        attendanceSaved,
+        className: session.class_name,
+        endsAt,
+        finishedAt: session.finished_at ? new Date(session.finished_at) : null,
+        id: session.id,
+        lifecycle: classLifecycle(
+          session.status ?? "programada",
+          attendanceSaved,
+          startsAt,
+          endsAt,
+          now
+        ),
+        startsAt,
+      },
+    ];
+  });
+
   const role = normalizeRole(profile?.role);
   const isSuperadmin = role === "superadmin";
   const canManage = canManageOperations(role);
   const classStreak = profile?.current_class_streak ?? 0;
-  const nextClassTime = nextSession?.starts_at
-    ? classTimeFormatter.format(new Date(nextSession.starts_at))
+  const highlightedSession =
+    sessions.find((session) => session.lifecycle === "in_progress") ??
+    sessions.find((session) => session.lifecycle === "started") ??
+    sessions.find((session) => session.lifecycle === "ready") ??
+    sessions.find((session) => session.lifecycle === "scheduled") ??
+    sessions.find((session) => session.lifecycle === "closing") ??
+    null;
+  const nextClassTime = highlightedSession
+    ? classTimeFormatter.format(highlightedSession.startsAt)
     : null;
   const peopleHref = isSuperadmin ? "/usuarios" : "/alumnos";
   const peopleLabel = isSuperadmin ? "usuarios" : "alumnos";
   const displayName = greetingName(profile?.full_name);
-  const notifications: HomeNotification[] = [];
-
-  if (nextSession?.starts_at) {
-    notifications.push({
-      id: `class-${nextSession.id ?? nextSession.starts_at}`,
-      kind: "class",
-      title: `Próxima clase: ${nextSession.class_name ?? "Clase"}`,
-      description: `Programada para ${notificationDateFormatter.format(
-        new Date(nextSession.starts_at)
-      )}.`,
-      href: "/asistencia",
-    });
-  }
+  const notifications: HomeNotification[] = sessions.map((session) => ({
+    classStatus: session.lifecycle,
+    description: notificationDescription(session),
+    href: sessionHref(session),
+    id: `class-${session.id}-${session.lifecycle}`,
+    kind: "class",
+    title: session.className,
+  }));
 
   if (expiringCount > 0) {
     notifications.push({
@@ -132,7 +291,7 @@ export default async function HomePage() {
               <Card className="min-w-0 h-[7.25rem] items-center justify-center gap-1 rounded-3xl border-0 bg-[oklch(0.59_0.25_295)] px-1.5 py-2 text-center text-[oklch(0.985_0.006_300)] ring-0 shadow-[inset_0_1px_oklch(1_0_0/0.18)] sm:px-2">
                 <CalendarDays className="size-8 shrink-0" strokeWidth={2.5} />
                 <p className="mt-1 max-w-full truncate px-1 text-sm sm:text-base">
-                  {nextSession?.class_name ?? "Sin clase"}
+                  {highlightedSession?.className ?? "Sin clase"}
                 </p>
                 <p className="max-w-full truncate text-[clamp(1.05rem,5.2vw,1.65rem)] leading-none font-semibold tracking-[-0.04em]">
                   {nextClassTime ?? "—"}
