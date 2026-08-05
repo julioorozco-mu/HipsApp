@@ -116,7 +116,7 @@ export function StudentList({ students }: { students: StudentListItem[] }) {
         {visibleStudents.length ? (
           <ul className="divide-y">
             {visibleStudents.map((student, index) => (
-              <li key={student.id}>
+              <li key={student.id} className="[content-visibility:auto] [contain-intrinsic-size:5rem]">
                 <Link
                   href={`/alumnos/${student.id}`}
                   draggable={false}

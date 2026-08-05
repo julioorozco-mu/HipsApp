@@ -20,15 +20,6 @@ import { cn } from "@/lib/utils";
 export type AttendanceStudent = {
   id: string;
   nombre: string;
-  telefono: string;
-  objetivo_peso_grasa: number | null;
-  current_streak: number;
-  highest_streak: number;
-  membership: {
-    fecha_vencimiento: string;
-    estado: "activa" | "por_vencer" | "vencida";
-    created_at: string;
-  } | null;
 };
 
 type AttendanceMode = "open" | "saved" | "disabled";
@@ -154,7 +145,7 @@ export function AttendanceList({
             return (
               <li
                 key={student.id}
-                className="grid min-h-20 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-3 py-3"
+                className="grid min-h-20 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-3 py-3 [content-visibility:auto] [contain-intrinsic-size:5rem]"
               >
                 <span
                   aria-hidden="true"

@@ -157,9 +157,7 @@ export default async function AttendancePage({
     ? await Promise.all([
         supabase
           .from("student_overview")
-          .select(
-            "id, nombre, telefono, objetivo_peso_grasa, current_streak, highest_streak"
-          )
+          .select("id, nombre")
           .eq("active", true)
           .in("membership_status", ["activa", "por_vencer"])
           .order("nombre"),
@@ -270,16 +268,11 @@ export default async function AttendancePage({
     null;
 
   const students: AttendanceStudent[] = data.flatMap((student) =>
-    student.id && student.nombre && student.telefono
+    student.id && student.nombre
       ? [
           {
             id: student.id,
             nombre: student.nombre,
-            telefono: student.telefono,
-            objetivo_peso_grasa: student.objetivo_peso_grasa,
-            current_streak: student.current_streak ?? 0,
-            highest_streak: student.highest_streak ?? 0,
-            membership: null,
           },
         ]
       : []
