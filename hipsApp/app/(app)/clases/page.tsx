@@ -103,19 +103,21 @@ export default async function ClassesPage({
           .neq("status", "cancelada")
           .order("starts_at");
 
-  const { data: profile } = await profilePromise;
-  if (!canManageOperations(normalizeRole(String(profile?.role)))) redirect("/mas");
-
+  let profile;
+  let classesResult;
   let sessionsResult;
-  if (selectedDate === today) {
-    const { error: ensureError } = await supabase.rpc(
-      "ensure_daily_class_sessions" as never,
-      { p_date: today } as never
-    );
-    if (ensureError) {
-      throw new Error(`No se pudieron preparar las clases de hoy: ${ensureError.message}`);
-    }
 
+  if (selectedDate === today) {
+    const [profileRes, classesRes, ensureRes] = await Promise.all([
+      profilePromise,
+      classesPromise,
+      supabase.rpc("ensure_daily_class_sessions" as never, { p_date: today } as never),
+    ]);
+    if (ensureRes.error) {
+      throw new Error(`No se pudieron preparar las clases de hoy: ${ensureRes.error.message}`);
+    }
+    profile = profileRes.data;
+    classesResult = classesRes;
     sessionsResult = await supabase
       .from("session_overview")
       .select(
@@ -126,10 +128,17 @@ export default async function ClassesPage({
       .neq("status", "cancelada")
       .order("starts_at");
   } else {
-    sessionsResult = await sessionsPromise!;
+    const [profileRes, classesRes, sessionsRes] = await Promise.all([
+      profilePromise,
+      classesPromise,
+      sessionsPromise!,
+    ]);
+    profile = profileRes.data;
+    classesResult = classesRes;
+    sessionsResult = sessionsRes;
   }
 
-  const classesResult = await classesPromise;
+  if (!canManageOperations(normalizeRole(String(profile?.role)))) redirect("/mas");
 
   if (classesResult.error || sessionsResult.error) {
     throw new Error(

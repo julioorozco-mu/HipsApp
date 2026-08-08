@@ -117,29 +117,45 @@ function monthLabel(days: CalendarDay[]) {
   return `${capitalize(firstLabel)} – ${capitalize(monthFormatter.format(last))}`;
 }
 
-function timeLabel(value: string) {
+function timeLabel(value: string, durationMinutes: number = 0) {
   const [hourValue, minute] = value.slice(0, 5).split(":").map(Number);
-  const suffix = hourValue >= 12 ? "p. m." : "a. m.";
-  return `${hourValue % 12 || 12}:${String(minute).padStart(2, "0")} ${suffix}`;
+  const startSuffix = hourValue >= 12 ? "p. m." : "a. m.";
+  const startFormatted = `${hourValue % 12 || 12}:${String(minute).padStart(2, "0")} ${startSuffix}`;
+
+  if (!durationMinutes) return startFormatted;
+
+  const endTotalMinutes = hourValue * 60 + minute + durationMinutes;
+  const endHourValue = Math.floor(endTotalMinutes / 60) % 24;
+  const endMinute = endTotalMinutes % 60;
+  const endSuffix = endHourValue >= 12 ? "p. m." : "a. m.";
+  const endFormatted = `${endHourValue % 12 || 12}:${String(endMinute).padStart(2, "0")} ${endSuffix}`;
+
+  return `${startFormatted} – ${endFormatted}`;
+}
+
+function formatSessionTime(startsAt: string, durationMinutes: number) {
+  const start = new Date(startsAt);
+  const end = new Date(start.getTime() + durationMinutes * 60000);
+  return `${sessionTimeFormatter.format(start)} – ${sessionTimeFormatter.format(end)}`;
 }
 
 function sessionStatus(item: ClassSessionItem) {
   if (item.status === "completada") {
     if (item.closureMode === "manual") {
       return {
-        label: "Cerrada manualmente",
+        label: "Cerrada",
         tone: "bg-[oklch(0.95_0.07_80)] text-[oklch(0.43_0.13_65)]",
       };
     }
     if (item.closureMode === "automatic" && !item.attendanceSaved) {
       return {
-        label: "Cerrada sin asistencia",
+        label: "Cerrada",
         tone: "bg-secondary text-muted-foreground",
       };
     }
     if (item.closureMode === "automatic") {
       return {
-        label: "Finalizada automáticamente",
+        label: "Finalizada",
         tone: "bg-[oklch(0.93_0.07_145)] text-[oklch(0.38_0.12_145)]",
       };
     }
@@ -278,7 +294,7 @@ function SwipeClassCard({ item }: { item: ClassItem }) {
               </div>
               <p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
                 <Clock3 className="size-4" />
-                {timeLabel(item.startTime)} · {item.durationMinutes} min
+                {timeLabel(item.startTime, item.durationMinutes)}
               </p>
               <p className="mt-2 text-sm">Cupo máximo: {item.capacity}</p>
               <p className="mt-2 text-xs text-muted-foreground">
@@ -369,7 +385,7 @@ function SessionClassCard({ item }: { item: ClassSessionItem }) {
           </div>
           <p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
             <Clock3 className="size-4" />
-            {sessionTimeFormatter.format(new Date(item.startsAt))} · {item.durationMinutes} min
+            {formatSessionTime(item.startsAt, item.durationMinutes)}
           </p>
           {completed ? (
             <p className="mt-2 flex items-center gap-2 text-sm">
@@ -403,25 +419,43 @@ export function ClassesClient({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const selected = useMemo(() => parseLocalDate(selectedDate), [selectedDate]);
+
+  // Optimistic date state for 0ms instant UI feedback upon click
+  const [activeDate, setActiveDate] = useState(selectedDate);
+
+  useEffect(() => {
+    setActiveDate(selectedDate);
+  }, [selectedDate]);
+
+  const selected = useMemo(() => parseLocalDate(activeDate), [activeDate]);
   const [windowStart, setWindowStart] = useState(selected);
   const days = useMemo(() => calendarDays(windowStart), [windowStart]);
   const visibleTemplates =
-    sessions.length === 0 && selectedDate >= today
+    sessions.length === 0 && activeDate >= today
       ? classes.filter((item) => item.weekday === selected.getDay())
       : [];
-  const isPast = selectedDate < today;
-  const isToday = selectedDate === today;
+  const isPast = activeDate < today;
+  const isToday = activeDate === today;
+
+  const lastProcessedDate = useRef(activeDate);
 
   useEffect(() => {
-    const first = windowStart.getTime();
-    const last = addDays(windowStart, 4).getTime();
-    const value = selected.getTime();
-    if (value < first || value > last) setWindowStart(selected);
-  }, [selected, windowStart]);
+    if (activeDate !== lastProcessedDate.current) {
+      lastProcessedDate.current = activeDate;
+      const first = windowStart.getTime();
+      const last = addDays(windowStart, 4).getTime();
+      const value = selected.getTime();
+      if (value < first || value > last) setWindowStart(selected);
+    }
+  }, [activeDate, selected, windowStart]);
+
+  function prefetchIso(iso: string) {
+    router.prefetch(`/clases?fecha=${iso}`);
+  }
 
   function chooseDate(date: Date) {
     const iso = dateKey(date);
+    setActiveDate(iso);
     startTransition(() => {
       router.replace(`/clases?fecha=${iso}`, { scroll: false });
     });
@@ -434,7 +468,7 @@ export function ClassesClient({
   }
 
   return (
-    <div className={`grid gap-5 pb-20 transition-opacity ${isPending ? "opacity-65" : "opacity-100"}`}>
+    <div className="grid gap-5 pb-20">
       <section
         aria-label="Calendario semanal"
         className="rounded-3xl border bg-card p-4 shadow-sm"
@@ -446,6 +480,8 @@ export function ClassesClient({
               type="button"
               aria-label="Cinco días anteriores"
               onClick={() => navigate(-5)}
+              onMouseEnter={() => prefetchIso(dateKey(addDays(windowStart, -5)))}
+              onTouchStart={() => prefetchIso(dateKey(addDays(windowStart, -5)))}
               className="grid size-10 place-items-center rounded-full hover:bg-secondary"
             >
               <ChevronLeft className="size-6" />
@@ -454,6 +490,8 @@ export function ClassesClient({
               type="button"
               aria-label="Cinco días siguientes"
               onClick={() => navigate(5)}
+              onMouseEnter={() => prefetchIso(dateKey(addDays(windowStart, 5)))}
+              onTouchStart={() => prefetchIso(dateKey(addDays(windowStart, 5)))}
               className="grid size-10 place-items-center rounded-full hover:bg-secondary"
             >
               <ChevronRight className="size-6" />
@@ -466,18 +504,22 @@ export function ClassesClient({
             type="button"
             aria-label="Cinco días anteriores"
             onClick={() => navigate(-5)}
+            onMouseEnter={() => prefetchIso(dateKey(addDays(windowStart, -5)))}
+            onTouchStart={() => prefetchIso(dateKey(addDays(windowStart, -5)))}
             className="grid size-11 place-items-center rounded-full border-2 text-muted-foreground"
           >
             <ChevronLeft className="size-6" />
           </button>
 
           {days.map((day) => {
-            const selectedDay = day.iso === selectedDate;
+            const selectedDay = day.iso === activeDate;
             return (
               <button
                 key={day.iso}
                 type="button"
                 onClick={() => chooseDate(day.date)}
+                onMouseEnter={() => prefetchIso(day.iso)}
+                onTouchStart={() => prefetchIso(day.iso)}
                 aria-pressed={selectedDay}
                 className={`grid min-h-24 place-items-center rounded-2xl px-1 transition-colors ${
                   selectedDay
@@ -497,6 +539,8 @@ export function ClassesClient({
             type="button"
             aria-label="Cinco días siguientes"
             onClick={() => navigate(5)}
+            onMouseEnter={() => prefetchIso(dateKey(addDays(windowStart, 5)))}
+            onTouchStart={() => prefetchIso(dateKey(addDays(windowStart, 5)))}
             className="grid size-11 place-items-center rounded-full border-2 text-muted-foreground"
           >
             <ChevronRight className="size-6" />
@@ -504,7 +548,7 @@ export function ClassesClient({
         </div>
       </section>
 
-      <section className="grid gap-3">
+      <section className={`grid gap-3 transition-opacity duration-150 ${isPending ? "opacity-50" : "opacity-100"}`}>
         <div className="flex items-end justify-between gap-3 px-1">
           <div>
             <h2 className="font-semibold">

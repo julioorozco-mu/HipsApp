@@ -71,11 +71,11 @@ function capitalize(value: string) {
 }
 
 function closureLabel(session: SessionRow) {
-  if (session.closure_mode === "manual") return "Cerrada manualmente";
+  if (session.closure_mode === "manual") return "Cerrada";
   if (session.closure_mode === "automatic" && !session.attendance_saved_at) {
-    return "Cerrada sin asistencia";
+    return "Cerrada";
   }
-  if (session.closure_mode === "automatic") return "Finalizada automáticamente";
+  if (session.closure_mode === "automatic") return "Finalizada";
   if (session.status === "completada") return "Finalizada";
   return "Sesión registrada";
 }
@@ -94,67 +94,62 @@ export default async function ClassSessionHistoryPage({
 
   const [{ data: profile }, sessionResult] = await Promise.all([
     supabase.from("profiles").select("role").eq("id", user.id).maybeSingle(),
-    supabase.from("class_sessions").select("*").eq("id", id).maybeSingle(),
+    supabase
+      .from("class_sessions")
+      .select(`
+        *,
+        classes (name, duration_minutes, capacity),
+        attendance (
+          student_id,
+          marked_at,
+          status,
+          students (id, nombre)
+        )
+      `)
+      .eq("id", id)
+      .maybeSingle(),
   ]);
+
   if (!canManageOperations(normalizeRole(String(profile?.role)))) redirect("/mas");
   if (sessionResult.error) throw new Error(sessionResult.error.message);
   if (!sessionResult.data) notFound();
 
-  const session = sessionResult.data as unknown as SessionRow;
-  const [classResult, attendanceResult, closerResult] = await Promise.all([
-    supabase
-      .from("classes")
-      .select("name, duration_minutes, capacity")
-      .eq("id", session.class_id)
-      .maybeSingle(),
-    supabase
-      .from("attendance")
-      .select("student_id, marked_at, status")
-      .eq("session_id", session.id)
-      .eq("status", "presente")
-      .order("marked_at"),
-    session.finished_by
-      ? supabase
-          .from("profiles")
-          .select("full_name")
-          .eq("id", session.finished_by)
-          .maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
-  ]);
+  type JoinedSessionRow = SessionRow & {
+    classes: ClassRow | null;
+    attendance: Array<{
+      marked_at: string;
+      status: string;
+      student_id: string;
+      students: StudentRow | null;
+    }> | null;
+  };
 
-  if (classResult.error || attendanceResult.error || closerResult.error) {
-    throw new Error(
-      `No se pudo cargar el histórico de la clase: ${
-        classResult.error?.message ??
-        attendanceResult.error?.message ??
-        closerResult.error?.message
-      }`
-    );
-  }
+  const session = sessionResult.data as unknown as JoinedSessionRow;
+  const classInfo = session.classes;
 
-  const classInfo = classResult.data as ClassRow | null;
-  const attendance = attendanceResult.data ?? [];
-  const studentIds = attendance.map((row) => row.student_id);
-  const studentsResult = studentIds.length
+  const closerResult = session.finished_by
     ? await supabase
-        .from("students")
-        .select("id, nombre")
-        .in("id", studentIds)
-    : { data: [], error: null };
+        .from("profiles")
+        .select("full_name")
+        .eq("id", session.finished_by)
+        .maybeSingle()
+    : { data: null, error: null };
 
-  if (studentsResult.error) {
-    throw new Error(`No se pudieron cargar los asistentes: ${studentsResult.error.message}`);
+  if (closerResult.error) {
+    throw new Error(`No se pudo cargar el responsable de cierre: ${closerResult.error.message}`);
   }
 
-  const studentById = new Map(
-    ((studentsResult.data ?? []) as StudentRow[]).map((student) => [student.id, student])
-  );
-  const attendees = attendance.flatMap((row) => {
-    const student = studentById.get(row.student_id);
+  const rawAttendance = (session.attendance ?? [])
+    .filter((row) => row.status === "presente")
+    .sort((a, b) => new Date(a.marked_at).getTime() - new Date(b.marked_at).getTime());
+
+  const attendees = rawAttendance.flatMap((row) => {
+    const student = row.students;
     return student
       ? [{ id: student.id, markedAt: row.marked_at, name: student.nombre }]
       : [];
   });
+
   const startsAt = new Date(session.starts_at);
   const finishedAt = session.finished_at ? new Date(session.finished_at) : null;
   const statusLabel = closureLabel(session);
@@ -188,7 +183,7 @@ export default async function ClassSessionHistoryPage({
             <p className="flex items-center gap-3">
               <Clock3 className="size-5 text-primary" />
               <span>
-                {timeFormatter.format(startsAt)} · {classInfo?.duration_minutes ?? 60} min
+                {timeFormatter.format(startsAt)} – {timeFormatter.format(new Date(startsAt.getTime() + (classInfo?.duration_minutes ?? 60) * 60000))}
               </span>
             </p>
             <p className="flex items-center gap-3">

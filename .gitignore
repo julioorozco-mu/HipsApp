@@ -42,3 +42,8 @@ supabase/.temp
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# agents
+.agents
+.claude
+skills-lock.json
