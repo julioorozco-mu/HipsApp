@@ -40,7 +40,9 @@ export type FinishPlaylistOption = {
 
 const initialState: FinishClassState = { error: null, success: false };
 const finishedAtFormatter = new Intl.DateTimeFormat("es-MX", {
-  dateStyle: "medium",
+  day: "numeric",
+  month: "short",
+  year: "numeric",
   hour: "numeric",
   minute: "2-digit",
   hour12: true,
@@ -98,14 +100,21 @@ export function FinishClassForm({
 
     startTransition(async () => {
       setError("");
-      const next = await finishClass(initialState, formData);
-      if (!next.success) {
-        setError(next.error ?? "No se pudo finalizar la clase.");
+      try {
+        const next = await finishClass(initialState, formData);
+        if (!next.success) {
+          setError(next.error ?? "No se pudo finalizar la clase.");
+          setConfirming(false);
+          return;
+        }
+        setResult(next);
         setConfirming(false);
-        return;
+      } catch {
+        setError(
+          "No se pudo completar el cierre en este momento. La asistencia permanece guardada; intenta finalizar nuevamente."
+        );
+        setConfirming(false);
       }
-      setResult(next);
-      setConfirming(false);
     });
   }
 
