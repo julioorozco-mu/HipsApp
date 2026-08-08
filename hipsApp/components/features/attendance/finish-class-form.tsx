@@ -40,7 +40,9 @@ export type FinishPlaylistOption = {
 
 const initialState: FinishClassState = { error: null, success: false };
 const finishedAtFormatter = new Intl.DateTimeFormat("es-MX", {
-  dateStyle: "medium",
+  day: "numeric",
+  month: "short",
+  year: "numeric",
   hour: "numeric",
   minute: "2-digit",
   hour12: true,
