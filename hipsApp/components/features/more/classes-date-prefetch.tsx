@@ -35,13 +35,13 @@ export function ClassesDatePrefetch({ selectedDate }: { selectedDate: string }) 
       }
     };
 
-    if ("requestIdleCallback" in window) {
+    if (typeof window.requestIdleCallback === "function") {
       const id = window.requestIdleCallback(prefetch, { timeout: 1200 });
       return () => window.cancelIdleCallback(id);
     }
 
-    const id = window.setTimeout(prefetch, 300);
-    return () => window.clearTimeout(id);
+    const id = globalThis.setTimeout(prefetch, 300);
+    return () => globalThis.clearTimeout(id);
   }, [router, selectedDate]);
 
   return null;
