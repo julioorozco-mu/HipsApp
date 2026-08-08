@@ -81,13 +81,12 @@ export function AttendanceList({
           return;
         }
 
-        // Volvemos a la misma sesión para leer el estado persistido desde el
-        // servidor. `replace` evita regresar con Back al formulario previo al
-        // guardado y separa claramente Guardar asistencia de Finalizar clase.
-        window.location.replace(`/asistencia?session=${sessionId}`);
+        // La asistencia se confirma primero en su propia pantalla. Una recarga
+        // completa evita estados RSC obsoletos y no mezcla guardar con finalizar.
+        window.location.replace(`/asistencia?session=${sessionId}&saved=1`);
       } catch {
         setMessage(
-          "La asistencia pudo haberse guardado. Recarga esta pantalla para confirmar el estado antes de intentarlo de nuevo."
+          "No se pudo confirmar el guardado. Recarga esta pantalla antes de volver a intentarlo."
         );
       }
     });
