@@ -3,13 +3,16 @@
 import { useRouter } from "next/navigation";
 import {
   CalendarDays,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Clock3,
+  PlayCircle,
   Trash2,
   TriangleAlert,
+  UsersRound,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 
 import { deleteClass } from "@/app/actions/more";
@@ -23,6 +26,22 @@ export type ClassItem = {
   weekday: number;
 };
 
+export type ClassSessionItem = {
+  activeTemplate: boolean;
+  attendanceSaved: boolean;
+  capacity: number;
+  classId: string;
+  closureMode: string | null;
+  closureReason: string | null;
+  durationMinutes: number;
+  finishedAt: string | null;
+  id: string;
+  name: string;
+  presentCount: number;
+  startsAt: string;
+  status: string;
+};
+
 type CalendarDay = {
   date: Date;
   dayNumber: number;
@@ -32,6 +51,12 @@ type CalendarDay = {
 };
 
 const weekdayLabels = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+const sessionTimeFormatter = new Intl.DateTimeFormat("es-MX", {
+  hour: "numeric",
+  minute: "2-digit",
+  hour12: true,
+  timeZone: "America/Mexico_City",
+});
 
 function parseLocalDate(value: string) {
   const [year, month, day] = value.split("-").map(Number);
@@ -77,26 +102,64 @@ const monthFormatter = new Intl.DateTimeFormat("es-MX", {
 function monthLabel(days: CalendarDay[]) {
   const first = days[0].date;
   const last = days.at(-1)?.date ?? first;
-  const month = monthFormatter;
 
   if (
     first.getMonth() === last.getMonth() &&
     first.getFullYear() === last.getFullYear()
   ) {
-    return capitalize(month.format(first));
+    return capitalize(monthFormatter.format(first));
   }
 
   const firstLabel = new Intl.DateTimeFormat("es-MX", {
     month: "long",
     year: first.getFullYear() === last.getFullYear() ? undefined : "numeric",
   }).format(first);
-  return `${capitalize(firstLabel)} – ${capitalize(month.format(last))}`;
+  return `${capitalize(firstLabel)} – ${capitalize(monthFormatter.format(last))}`;
 }
 
 function timeLabel(value: string) {
   const [hourValue, minute] = value.slice(0, 5).split(":").map(Number);
   const suffix = hourValue >= 12 ? "p. m." : "a. m.";
   return `${hourValue % 12 || 12}:${String(minute).padStart(2, "0")} ${suffix}`;
+}
+
+function sessionStatus(item: ClassSessionItem) {
+  if (item.status === "completada") {
+    if (item.closureMode === "manual") {
+      return {
+        label: "Cerrada manualmente",
+        tone: "bg-[oklch(0.95_0.07_80)] text-[oklch(0.43_0.13_65)]",
+      };
+    }
+    if (item.closureMode === "automatic" && !item.attendanceSaved) {
+      return {
+        label: "Cerrada sin asistencia",
+        tone: "bg-secondary text-muted-foreground",
+      };
+    }
+    if (item.closureMode === "automatic") {
+      return {
+        label: "Finalizada automáticamente",
+        tone: "bg-[oklch(0.93_0.07_145)] text-[oklch(0.38_0.12_145)]",
+      };
+    }
+    return {
+      label: "Finalizada",
+      tone: "bg-[oklch(0.93_0.07_145)] text-[oklch(0.38_0.12_145)]",
+    };
+  }
+
+  if (item.status === "en_curso" || item.attendanceSaved) {
+    return {
+      label: "En curso",
+      tone: "bg-[oklch(0.93_0.07_145)] text-[oklch(0.38_0.12_145)]",
+    };
+  }
+
+  return {
+    label: "Programada",
+    tone: "bg-primary/10 text-primary",
+  };
 }
 
 function DeleteSubmitButton() {
@@ -207,10 +270,10 @@ function SwipeClassCard({ item }: { item: ClassItem }) {
               <CalendarDays className="size-6" />
             </span>
             <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex items-start justify-between gap-3">
                 <h2 className="truncate font-bold">{item.name}</h2>
-                <span className="shrink-0 rounded-full bg-green-100 px-2 py-1 text-xs text-green-700">
-                  Activa
+                <span className="shrink-0 rounded-full bg-primary/10 px-2 py-1 text-xs text-primary">
+                  Programada
                 </span>
               </div>
               <p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
@@ -251,8 +314,7 @@ function SwipeClassCard({ item }: { item: ClassItem }) {
             </h2>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
               <strong className="text-foreground">{item.name}</strong> dejará de aparecer en
-              el calendario y ya no generará sesiones de asistencia. El registro se conservará
-              como inactivo.
+              fechas futuras. Las sesiones ya realizadas permanecerán en el historial.
             </p>
             <form action={deleteAction} className="mt-6 flex gap-3">
               <button
@@ -274,30 +336,105 @@ function SwipeClassCard({ item }: { item: ClassItem }) {
   );
 }
 
+function SessionClassCard({ item }: { item: ClassSessionItem }) {
+  const router = useRouter();
+  const completed = item.status === "completada";
+  const status = sessionStatus(item);
+  const Icon = completed ? CheckCircle2 : PlayCircle;
+
+  function openSession() {
+    router.push(
+      completed
+        ? `/clases/sesiones/${item.id}`
+        : `/asistencia?session=${item.id}`
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={openSession}
+      className="w-full rounded-2xl border bg-card p-4 text-left transition-colors hover:bg-secondary/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+    >
+      <div className="flex items-start gap-3">
+        <span className="grid size-12 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
+          <Icon className="size-6" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="truncate font-bold">{item.name}</h2>
+            <span className={`max-w-36 shrink-0 rounded-full px-2 py-1 text-right text-[0.68rem] font-semibold leading-tight ${status.tone}`}>
+              {status.label}
+            </span>
+          </div>
+          <p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+            <Clock3 className="size-4" />
+            {sessionTimeFormatter.format(new Date(item.startsAt))} · {item.durationMinutes} min
+          </p>
+          {completed ? (
+            <p className="mt-2 flex items-center gap-2 text-sm">
+              <UsersRound className="size-4 text-primary" />
+              {item.presentCount} {item.presentCount === 1 ? "asistente" : "asistentes"}
+            </p>
+          ) : (
+            <p className="mt-2 text-sm">Cupo máximo: {item.capacity}</p>
+          )}
+          <p className="mt-2 text-xs text-muted-foreground">
+            {completed
+              ? "Toca para consultar el cierre y la asistencia histórica."
+              : "Toca para abrir la asistencia de esta sesión."}
+          </p>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 export function ClassesClient({
   classes,
+  selectedDate,
+  sessions,
   today,
 }: {
   classes: ClassItem[];
+  selectedDate: string;
+  sessions: ClassSessionItem[];
   today: string;
 }) {
-  const initialDate = useMemo(() => parseLocalDate(today), [today]);
-  const [windowStart, setWindowStart] = useState(initialDate);
-  const [selectedDate, setSelectedDate] = useState(initialDate);
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const selected = useMemo(() => parseLocalDate(selectedDate), [selectedDate]);
+  const [windowStart, setWindowStart] = useState(selected);
   const days = useMemo(() => calendarDays(windowStart), [windowStart]);
-  const selectedKey = dateKey(selectedDate);
-  const visibleClasses = classes.filter(
-    (item) => item.weekday === selectedDate.getDay()
-  );
+  const visibleTemplates =
+    sessions.length === 0 && selectedDate >= today
+      ? classes.filter((item) => item.weekday === selected.getDay())
+      : [];
+  const isPast = selectedDate < today;
+  const isToday = selectedDate === today;
+
+  useEffect(() => {
+    const first = windowStart.getTime();
+    const last = addDays(windowStart, 4).getTime();
+    const value = selected.getTime();
+    if (value < first || value > last) setWindowStart(selected);
+  }, [selected, windowStart]);
+
+  function chooseDate(date: Date) {
+    const iso = dateKey(date);
+    startTransition(() => {
+      router.replace(`/clases?fecha=${iso}`, { scroll: false });
+    });
+  }
 
   function navigate(amount: number) {
     const next = addDays(windowStart, amount);
     setWindowStart(next);
-    setSelectedDate(next);
+    chooseDate(next);
   }
 
   return (
-    <div className="grid gap-5 pb-20">
+    <div className={`grid gap-5 pb-20 transition-opacity ${isPending ? "opacity-65" : "opacity-100"}`}>
       <section
         aria-label="Calendario semanal"
         className="rounded-3xl border bg-card p-4 shadow-sm"
@@ -335,15 +472,15 @@ export function ClassesClient({
           </button>
 
           {days.map((day) => {
-            const selected = day.iso === selectedKey;
+            const selectedDay = day.iso === selectedDate;
             return (
               <button
                 key={day.iso}
                 type="button"
-                onClick={() => setSelectedDate(day.date)}
-                aria-pressed={selected}
+                onClick={() => chooseDate(day.date)}
+                aria-pressed={selectedDay}
                 className={`grid min-h-24 place-items-center rounded-2xl px-1 transition-colors ${
-                  selected
+                  selectedDay
                     ? "bg-primary text-primary-foreground shadow-lg"
                     : "bg-primary/8 hover:bg-primary/15"
                 }`}
@@ -368,12 +505,37 @@ export function ClassesClient({
       </section>
 
       <section className="grid gap-3">
-        {visibleClasses.map((item) => (
+        <div className="flex items-end justify-between gap-3 px-1">
+          <div>
+            <h2 className="font-semibold">
+              {isPast ? "Historial del día" : isToday ? "Clases de hoy" : "Programación"}
+            </h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {isPast
+                ? "Las sesiones cerradas se conservan como registro histórico."
+                : isToday
+                  ? "El estado refleja la sesión real de hoy."
+                  : "Los cambios aquí modifican la programación recurrente."}
+            </p>
+          </div>
+          {isPast && sessions.length ? (
+            <span className="shrink-0 rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold text-muted-foreground">
+              {sessions.length} {sessions.length === 1 ? "sesión" : "sesiones"}
+            </span>
+          ) : null}
+        </div>
+
+        {sessions.map((item) => (
+          <SessionClassCard key={item.id} item={item} />
+        ))}
+        {visibleTemplates.map((item) => (
           <SwipeClassCard key={item.id} item={item} />
         ))}
-        {!visibleClasses.length ? (
+        {!sessions.length && !visibleTemplates.length ? (
           <p className="rounded-2xl border border-dashed p-8 text-center text-muted-foreground">
-            No hay clases registradas para este día.
+            {isPast
+              ? "No hay una sesión registrada para este día."
+              : "No hay clases registradas para este día."}
           </p>
         ) : null}
       </section>
