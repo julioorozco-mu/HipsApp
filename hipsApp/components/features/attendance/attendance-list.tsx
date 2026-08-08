@@ -81,12 +81,13 @@ export function AttendanceList({
           return;
         }
 
-        // La navegación completa evita errores de transición RSC/PWA después
-        // de una Server Action y garantiza datos frescos de la sesión.
-        window.location.assign(`/asistencia/finalizar?session=${sessionId}`);
+        // Volvemos a la misma sesión para leer el estado persistido desde el
+        // servidor. `replace` evita regresar con Back al formulario previo al
+        // guardado y separa claramente Guardar asistencia de Finalizar clase.
+        window.location.replace(`/asistencia?session=${sessionId}`);
       } catch {
         setMessage(
-          "La asistencia pudo haberse guardado, pero no se pudo abrir el cierre. Recarga esta pantalla para verificarla."
+          "La asistencia pudo haberse guardado. Recarga esta pantalla para confirmar el estado antes de intentarlo de nuevo."
         );
       }
     });
