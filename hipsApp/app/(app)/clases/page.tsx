@@ -88,7 +88,7 @@ export default async function ClassesPage({
     .single();
   const classesPromise = supabase
     .from("classes")
-    .select("id, name, weekday, start_time, duration_minutes, capacity, active")
+    .select("id, name, weekday, start_time, duration_minutes, capacity, active" as never)
     .order("start_time");
   const sessionsPromise =
     selectedDate === today
@@ -139,7 +139,7 @@ export default async function ClassesPage({
     );
   }
 
-  const classRows = (classesResult.data ?? []) as ClassRow[];
+  const classRows = (classesResult.data ?? []) as unknown as ClassRow[];
   const sessionRows = (sessionsResult.data ?? []) as unknown as SessionRow[];
   const classById = new Map(classRows.map((item) => [item.id, item]));
 
